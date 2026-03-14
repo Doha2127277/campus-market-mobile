@@ -52,6 +52,11 @@ const PostItemScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
 
   const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert("Permission Required", "We need access to your gallery to upload product photos.");
+      return;
+    }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
@@ -63,7 +68,17 @@ const PostItemScreen = ({ navigation }) => {
       setPhoto(result.assets[0].uri);
     }
   };
-
+const validateForm = () => {
+    if (!name.trim() || !description.trim() || !category || !type || !mode || !price || !photo) {
+      Alert.alert("Missing Fields", "Please fill all fields and select a photo.");
+      return false; 
+    }
+    if (isNaN(price) || Number(price) < 0) {
+      Alert.alert("Invalid Price", "Please enter a valid price number.");
+      return false;
+    }
+    return true; 
+  };
   const addOrder = async () => {
     const currentUser = auth.currentUser;
     if (!currentUser) {
@@ -71,18 +86,16 @@ const PostItemScreen = ({ navigation }) => {
       navigation.replace("Login");
       return;
     }
-
+if (!validateForm()) return;
     setLoading(true);
 
     try {
-      let photoURL = "";
-      if (photo) {
-        photoURL = await uploadToCloudinary(photo);
-      }
+      let photoURL = await uploadToCloudinary(photo);
+      
 
       const order = {
-        name,
-        description,
+        name:name.trim(),
+        description : description.trim(),
         category,
         type,
         status: "pending",
@@ -95,7 +108,7 @@ const PostItemScreen = ({ navigation }) => {
 
       await addDoc(collection(db, "products"), order);
       Alert.alert("Success", "Product added successfully!");
-
+      // navigation.goBack();
       setName("");
       setDescription("");
       setCategory("");
@@ -142,7 +155,7 @@ const PostItemScreen = ({ navigation }) => {
                 selectedValue={category}
                 onValueChange={setCategory}
               >
-                <Picker.Item label="Category" value="" />
+                <Picker.Item label="Category" value="" color="#94a3b8" />
                 <Picker.Item label="Engineering" value="Engineering" />
                 <Picker.Item label="Medicine" value="Medicine" />
                 <Picker.Item label="Business" value="Business" />
@@ -154,7 +167,7 @@ const PostItemScreen = ({ navigation }) => {
                 selectedValue={type}
                 onValueChange={setType}
               >
-                <Picker.Item label="Type" value="" />
+                <Picker.Item label="Type" value="" color="#94a3b8"  />
                 <Picker.Item label="Book" value="Book" />
                 <Picker.Item label="Tools" value="Tools" />
               </Picker>
@@ -165,7 +178,7 @@ const PostItemScreen = ({ navigation }) => {
                 selectedValue={mode}
                 onValueChange={setMode}
               >
-                <Picker.Item label="Mode" value="" />
+                <Picker.Item label="Mode" value="" color="#94a3b8"  />
                 <Picker.Item label="For Sale" value="For Sale" />
                 <Picker.Item label="Volunteer" value="Volunteer" />
               </Picker>
