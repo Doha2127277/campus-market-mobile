@@ -10,6 +10,7 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator
 } from "react-native";
 import { Picker } from '@react-native-picker/picker';
 import { db, auth } from "../services/firebase";
@@ -31,9 +32,7 @@ const uploadToCloudinary = async (uri) => {
     {
       method: "POST",
       body: formData,
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+      headers: { 'Content-Type': 'multipart/form-data' },
     }
   );
 
@@ -54,48 +53,43 @@ const PostItemScreen = ({ navigation }) => {
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert("Permission Required", "We need access to your gallery to upload product photos.");
+      Alert.alert("Permission Required", "We need access to your gallery.");
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      aspect: [4, 3],
-      quality: 1,
+      aspect: [1, 1],
+      quality: 0.7,
     });
 
     if (!result.canceled) {
       setPhoto(result.assets[0].uri);
     }
   };
-const validateForm = () => {
+
+  const validateForm = () => {
     if (!name.trim() || !description.trim() || !category || !type || !mode || !price || !photo) {
       Alert.alert("Missing Fields", "Please fill all fields and select a photo.");
-      return false; 
-    }
-    if (isNaN(price) || Number(price) < 0) {
-      Alert.alert("Invalid Price", "Please enter a valid price number.");
       return false;
     }
-    return true; 
+    return true;
   };
+
   const addOrder = async () => {
     const currentUser = auth.currentUser;
     if (!currentUser) {
       Alert.alert("Error", "Please login first");
-      navigation.replace("Login");
       return;
     }
-if (!validateForm()) return;
+    if (!validateForm()) return;
     setLoading(true);
 
     try {
       let photoURL = await uploadToCloudinary(photo);
-      
-
       const order = {
-        name:name.trim(),
-        description : description.trim(),
+        name: name.trim(),
+        description: description.trim(),
         category,
         type,
         status: "pending",
@@ -107,18 +101,13 @@ if (!validateForm()) return;
       };
 
       await addDoc(collection(db, "products"), order);
-      Alert.alert("Success", "Product added successfully!");
-      // navigation.goBack();
-      setName("");
-      setDescription("");
-      setCategory("");
-      setType("");
-      setMode("");
-      setPrice("");
-      setPhoto(null);
-
-    } catch {
-      Alert.alert("Error", "Error adding product");
+      Alert.alert("Success", "Product sent for admin review!");
+      
+      // Reset Form
+      setName(""); setDescription(""); setCategory(""); setType("");
+      setMode(""); setPrice(""); setPhoto(null);
+    } catch (e) {
+      Alert.alert("Error", "Something went wrong.");
     } finally {
       setLoading(false);
     }
@@ -129,94 +118,96 @@ if (!validateForm()) return;
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <View style={styles.card}>
-          <Text style={styles.title}>Add Product</Text>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
+        <Text style={styles.headerTitle}>List New Item</Text>
+        <Text style={styles.headerSub}>Fill in the details to list your product</Text>
 
-          <View style={styles.form}>
-            <TextInput
-              style={styles.input}
-              placeholder="Product Name"
-              value={name}
-              onChangeText={setName}
-            />
+        <View style={styles.formCard}>
+          <Text style={styles.inputLabel}>Product Name</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. Calculus Textbook"
+            placeholderTextColor="#94a3b8"
+            value={name}
+            onChangeText={setName}
+          />
 
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              placeholder="Add Description"
-              value={description}
-              onChangeText={setDescription}
-              multiline
-              numberOfLines={4}
-            />
+          <Text style={styles.inputLabel}>Description</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            placeholder="Tell us about the condition, edition, etc."
+            placeholderTextColor="#94a3b8"
+            value={description}
+            onChangeText={setDescription}
+            multiline
+          />
 
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={category}
-                onValueChange={setCategory}
-              >
-                <Picker.Item label="Category" value="" color="#94a3b8" />
-                <Picker.Item label="Engineering" value="Engineering" />
-                <Picker.Item label="Medicine" value="Medicine" />
-                <Picker.Item label="Business" value="Business" />
-              </Picker>
-            </View>
-
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={type}
-                onValueChange={setType}
-              >
-                <Picker.Item label="Type" value="" color="#94a3b8"  />
-                <Picker.Item label="Book" value="Book" />
-                <Picker.Item label="Tools" value="Tools" />
-              </Picker>
-            </View>
-
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={mode}
-                onValueChange={setMode}
-              >
-                <Picker.Item label="Mode" value="" color="#94a3b8"  />
-                <Picker.Item label="For Sale" value="For Sale" />
-                <Picker.Item label="Volunteer" value="Volunteer" />
-              </Picker>
-            </View>
-
-            <TextInput
-              style={styles.input}
-              placeholder="Price"
-              value={price}
-              onChangeText={setPrice}
-              keyboardType="numeric"
-            />
-
-            <Text style={styles.label}>Add Photo of product</Text>
-            
-            <TouchableOpacity 
-              style={styles.imagePicker} 
-              onPress={pickImage}
-              activeOpacity={0.7}
-            >
-              {photo ? (
-                <Image source={{ uri: photo }} style={styles.previewImage} />
-              ) : (
-                <Text style={styles.imagePickerText}>Choose Photo</Text>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
-              onPress={addOrder}
-              disabled={loading}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.buttonText}>
-                {loading ? "Adding..." : "Add Product"}
-              </Text>
-            </TouchableOpacity>
+          <View style={styles.row}>
+             <View style={{flex: 1}}>
+                <Text style={styles.inputLabel}>Category</Text>
+                <View style={styles.pickerWrapper}>
+                  <Picker selectedValue={category} onValueChange={setCategory}>
+                    <Picker.Item label="Select" value="" color="#94a3b8" />
+                    <Picker.Item label="Engineering" value="Engineering" />
+                    <Picker.Item label="Medicine" value="Medicine" />
+                    <Picker.Item label="Business" value="Business" />
+                  </Picker>
+                </View>
+             </View>
+             <View style={{flex: 1, marginLeft: 10}}>
+                <Text style={styles.inputLabel}>Price (EGP)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="0.00"
+                  placeholderTextColor="#94a3b8"
+                  value={price}
+                  onChangeText={setPrice}
+                  keyboardType="numeric"
+                />
+             </View>
           </View>
+
+          <Text style={styles.inputLabel}>Product Type</Text>
+          <View style={styles.pickerWrapper}>
+            <Picker selectedValue={type} onValueChange={setType}>
+              <Picker.Item label="What are you selling?" value="" color="#94a3b8" />
+              <Picker.Item label="Book" value="Book" />
+              <Picker.Item label="Tools" value="Tools" />
+            </Picker>
+          </View>
+
+          <Text style={styles.inputLabel}>Mode</Text>
+          <View style={styles.pickerWrapper}>
+            <Picker selectedValue={mode} onValueChange={setMode}>
+              <Picker.Item label="Select Mode" value="" color="#94a3b8" />
+              <Picker.Item label="For Sale" value="For Sale" />
+              <Picker.Item label="Volunteer" value="Volunteer" />
+            </Picker>
+          </View>
+
+          <Text style={styles.inputLabel}>Product Photo</Text>
+          <TouchableOpacity style={styles.imageSelector} onPress={pickImage}>
+            {photo ? (
+              <Image source={{ uri: photo }} style={styles.fullImage} />
+            ) : (
+              <View style={styles.placeholderBox}>
+                <Text style={styles.plusSign}>+</Text>
+                <Text style={styles.uploadText}>Upload Image</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.submitBtn, loading && styles.btnDisabled]}
+            onPress={addOrder}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={styles.submitBtnText}>Post Product</Text>
+            )}
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -224,100 +215,68 @@ if (!validateForm()) return;
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  scrollContainer: {
-    flexGrow: 1,
+  container: { flex: 1, backgroundColor: '#f8fafc' },
+  scrollContainer: { padding: 20, paddingBottom: 40 },
+  headerTitle: { fontSize: 28, fontWeight: '800', color: '#1e293b', marginTop: 10 },
+  headerSub: { fontSize: 14, color: '#64748b', marginBottom: 25 },
+  formCard: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
     padding: 20,
-    justifyContent: 'center',
-  },
-  card: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 30,
-    padding: 20,
-    borderWidth: 2,
-    borderColor: '#a50c0c',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 15,
-    elevation: 5,
-    width: '100%',
-    maxWidth: 400,
-    alignSelf: 'center',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 20,
-    color: 'black',
-  },
-  form: {
-    gap: 12,
-  },
+  inputLabel: { fontSize: 13, fontWeight: '700', color: '#475569', marginBottom: 8, marginLeft: 4 },
   input: {
-    backgroundColor: '#ededf2',
-    borderWidth: 2,
-    borderColor: 'black',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    padding: 15,
+    fontSize: 15,
+    color: '#1e293b',
+    marginBottom: 18,
   },
-  textArea: {
-    height: 100,
-    textAlignVertical: 'top',
-  },
-  pickerContainer: {
-    borderWidth: 2,
-    borderColor: 'black',
-    borderRadius: 8,
-    backgroundColor: '#ededf2',
+  textArea: { height: 100, textAlignVertical: 'top' },
+  row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
+  pickerWrapper: {
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    marginBottom: 18,
     overflow: 'hidden',
   },
-  label: {
-    color: 'black',
-    fontWeight: 'bold',
-    fontSize: 16,
-    marginTop: 5,
-  },
-  imagePicker: {
+  imageSelector: {
     width: '100%',
-    height: 150,
-    backgroundColor: '#ededf2',
+    height: 180,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 15,
+    borderStyle: 'dashed',
     borderWidth: 2,
-    borderColor: 'black',
-    borderRadius: 8,
+    borderColor: '#cbd5e1',
     justifyContent: 'center',
     alignItems: 'center',
-    overflow: 'hidden',
+    marginTop: 5,
+    marginBottom: 25,
+    overflow: 'hidden'
   },
-  previewImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  imagePickerText: {
-    color: '#666',
-    fontSize: 16,
-  },
-  button: {
-    backgroundColor: '#2ecc71',
-    padding: 15,
-    borderRadius: 8,
+  placeholderBox: { alignItems: 'center' },
+  plusSign: { fontSize: 30, color: '#94a3b8', fontWeight: '300' },
+  uploadText: { color: '#94a3b8', fontSize: 14, fontWeight: '600' },
+  fullImage: { width: '100%', height: '100%', resizeMode: 'cover' },
+  submitBtn: {
+    backgroundColor: '#2563eb',
+    padding: 18,
+    borderRadius: 15,
     alignItems: 'center',
-    marginTop: 10,
+    shadowColor: '#2563eb',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5
   },
-  buttonDisabled: {
-    backgroundColor: '#95a5a6',
-  },
-  buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
+  btnDisabled: { backgroundColor: '#94a3b8' },
+  submitBtnText: { color: 'white', fontSize: 17, fontWeight: '800' },
 });
 
 export default PostItemScreen;
