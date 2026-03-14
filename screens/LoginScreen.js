@@ -36,7 +36,7 @@ export default function LoginScreen({ navigation }) {
       } else {
         setErrorMsg("User data not found in database.");
       }
-    } catch (error) {
+    } catch {
       setErrorMsg("Invalid email or password");
     }
   };
