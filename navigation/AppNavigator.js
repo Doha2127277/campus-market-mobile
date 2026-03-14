@@ -24,6 +24,7 @@ export default function AppNavigator() {
         const role = await AsyncStorage.getItem('userRole');
         setUser(authenticatedUser);
         setUserRole(role);
+        console.log("Role from storage:", role);
       } else {
         setUser(null);
         setUserRole(null);
@@ -57,13 +58,11 @@ export default function AppNavigator() {
             component={AddOrderScreen} 
             options={{ headerShown: false }}
           />
-          {userRole === 'admin' && (
-            <Stack.Screen 
-              name="AllRequests" 
-              component={AllRequestsScreen} 
-              options={{ headerShown: false }}
-            />
-          )}
+           <Stack.Screen 
+            name="AllRequests" 
+            component={AllRequestsScreen} 
+            options={{ headerShown: false }}
+          />
         </Stack.Group>
       ) : (
         <Stack.Group>

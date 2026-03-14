@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -6,37 +6,52 @@ import {
   Pressable,
   StyleSheet,
   ScrollView,
-  Dimensions,
   Platform,
   StatusBar,
   Alert
 } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { auth } from "../services/firebase";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const isWeb = Platform.OS === "web";
 
 export default function HomeScreen() {
   const navigation = useNavigation();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(auth.currentUser);
   const [userRole, setUserRole] = useState(null);
+  const [userName, setUserName] = useState("");
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (authenticatedUser) => {
+      if (authenticatedUser) {
+        setUser(authenticatedUser);
+        const role = await AsyncStorage.getItem('userRole');
+        const name = await AsyncStorage.getItem('userName');
+        console.log("Current User Role:", role);
+        setUserRole(role);
+        setUserName(name || authenticatedUser.email?.split('@')[0]);
+      } else {
+        setUser(null);
+        setUserRole(null);
+        setUserName("");
+      }
+    });
+    return unsubscribe;
+  }, []);
 
   useFocusEffect(
-    React.useCallback(() => {
-      const currentUser = auth.currentUser;
-      setUser(currentUser);
-      if (currentUser) {
-        AsyncStorage.getItem('userRole').then((role) => {
-          console.log("Role from storage:", role);
-          setUserRole(role);
-        });
-      } else {
-        setUserRole(null);
-      }
+    useCallback(() => {
+      const updateUserData = async () => {
+        const role = await AsyncStorage.getItem('userRole');
+        const name = await AsyncStorage.getItem('userName');
+        setUserRole(role);
+        setUserName(name || (auth.currentUser ? auth.currentUser.email?.split('@')[0] : ""));
+      };
+      updateUserData();
     }, [])
   );
 
@@ -44,37 +59,50 @@ export default function HomeScreen() {
     setMenuOpen(false);
     if (!user) {
       navigation.navigate('Login');
-    } else if (screenName === "AllRequests" && userRole !== 'admin') {
-      Alert.alert("Access Denied", "Admins only");
+      return;
+    }
+    
+    if (screenName === "AllRequests" && userRole !== 'admin') {
+      if (isWeb) {
+        alert("Access Denied: Admins only");
+      } else {
+        Alert.alert("Access Denied", "Admins only");
+      }
     } else {
       navigation.navigate(screenName);
     }
   };
 
   const handleLogout = async () => {
+    if (isWeb) {
+      if (window.confirm("Are you sure you want to logout?")) {
+        performLogout();
+      }
+      return;
+    }
+
     Alert.alert(
       "Logout",
       "Are you sure you want to logout?",
       [
         { text: "Cancel", style: "cancel" },
-        {
-          text: "Logout",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await auth.signOut();
-              await AsyncStorage.removeItem('userRole');
-              setUser(null);
-              setUserRole(null);
-              setMenuOpen(false);
-              navigation.replace("Home");
-            } catch {
-              Alert.alert("Error", "Failed to logout");
-            }
-          }
-        }
+        { text: "Logout", style: "destructive", onPress: performLogout }
       ]
     );
+  };
+
+  const performLogout = async () => {
+    try {
+      await signOut(auth);
+      await AsyncStorage.multiRemove(['userRole', 'userName']);
+      setMenuOpen(false);
+    } catch {
+      if (isWeb) {
+        alert("Failed to logout");
+      } else {
+        Alert.alert("Error", "Failed to logout");
+      }
+    }
   };
 
   return (
@@ -107,8 +135,8 @@ export default function HomeScreen() {
                   </Pressable>
                 ) : (
                   <>
-                    <Text style={styles.userNameText}>
-                      Hi, {user.email?.split('@')[0]}
+                    <Text style={styles.userNameText} numberOfLines={1}>
+                      Hi, {userName}
                     </Text>
                     <Pressable
                       style={styles.logoutBtn}
@@ -137,46 +165,49 @@ export default function HomeScreen() {
               The most trusted marketplace to buy and sell textbooks, electronics,
               and student essentials within your university community.
             </Text>
-
-            <Pressable
-              style={styles.ctaButton}
-              onPress={() => handleProtectedNavigation("AllRequests")}
-            >
-              <Text style={styles.ctaText}>Explore Products</Text>
-            </Pressable>
           </View>
         </ScrollView>
 
         {menuOpen && (
-          <View style={styles.dropdownOverlay}>
-            <View style={styles.dropdownCard}>
-              <Pressable
-                style={styles.dropdownItem}
-                onPress={() => handleProtectedNavigation("MyProducts")}
-              >
-                <Text style={styles.dropdownText}>📦 My Inventory</Text>
-              </Pressable>
+          <>
+            <Pressable 
+              style={styles.outsideOverlay} 
+              onPress={() => setMenuOpen(false)} 
+            />
+            <View style={styles.dropdownOverlay}>
+              <View style={styles.dropdownCard}>
+                <View style={styles.roleTag}>
+                  <Text style={styles.roleTagText}>Role: {userRole || 'Guest'}</Text>
+                </View>
 
-              <Pressable
-                style={styles.dropdownItem}
-                onPress={() => handleProtectedNavigation("AddOrder")}
-              >
-                <Text style={styles.dropdownText}>➕ Post Item</Text>
-              </Pressable>
-
-              {userRole === 'admin' && (
                 <Pressable
-                  style={[styles.dropdownItem, { borderBottomWidth: 0 }]}
-                  onPress={() => {
-                    setMenuOpen(false);
-                    navigation.navigate("AllRequests");
-                  }}
+                  style={styles.dropdownItem}
+                  onPress={() => handleProtectedNavigation("MyProducts")}
                 >
-                  <Text style={styles.dropdownText}>📋 Admin Dashboard</Text>
+                  <Text style={styles.dropdownText}>📦 My Inventory</Text>
                 </Pressable>
-              )}
+
+                <Pressable
+                  style={styles.dropdownItem}
+                  onPress={() => handleProtectedNavigation("AddOrder")}
+                >
+                  <Text style={styles.dropdownText}>➕ Post Item</Text>
+                </Pressable>
+
+                {userRole === 'admin' && (
+                  <Pressable
+                    style={[styles.dropdownItem, { borderBottomWidth: 0 }]}
+                    onPress={() => {
+                      setMenuOpen(false);
+                      navigation.navigate("AllRequests");
+                    }}
+                  >
+                    <Text style={styles.dropdownText}>📋 Admin Dashboard</Text>
+                  </Pressable>
+                )}
+              </View>
             </View>
-          </View>
+          </>
         )}
       </View>
     </SafeAreaView>
@@ -199,7 +230,7 @@ const styles = StyleSheet.create({
   navbar: {
     backgroundColor: "#1e293b",
     paddingVertical: isWeb ? 15 : 10,
-    zIndex: 10,
+    zIndex: 20,
   },
   navContent: {
     flexDirection: "row",
@@ -226,7 +257,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
     flex: 1,
-    maxWidth: isWeb ? 300 : 140,
+    maxWidth: isWeb ? 300 : 160,
   },
   searchIcon: {
     fontSize: 14,
@@ -285,12 +316,21 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     fontSize: 14,
     marginRight: 10,
+    maxWidth: 100,
+  },
+  outsideOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 50,
   },
   dropdownOverlay: {
     position: "absolute",
-    top: isWeb ? 65 : 55,
+    top: isWeb ? 70 : 60,
     right: 15,
-    zIndex: 1000,
+    zIndex: 100,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
@@ -306,10 +346,22 @@ const styles = StyleSheet.create({
   dropdownCard: {
     backgroundColor: "#1e293b",
     borderRadius: 12,
-    width: 190,
+    width: 200,
     overflow: "hidden",
     borderWidth: 1,
     borderColor: "#334155",
+  },
+  roleTag: {
+    padding: 10,
+    backgroundColor: '#334155',
+    borderBottomWidth: 1,
+    borderBottomColor: '#475569'
+  },
+  roleTagText: {
+    color: '#38bdf8',
+    fontSize: 11,
+    fontWeight: 'bold',
+    textAlign: 'center'
   },
   dropdownItem: {
     paddingHorizontal: 15,
@@ -341,17 +393,5 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 24,
     maxWidth: 600,
-    marginBottom: 25,
-  },
-  ctaButton: {
-    backgroundColor: "#1e293b",
-    paddingVertical: 12,
-    paddingHorizontal: 25,
-    borderRadius: 8,
-  },
-  ctaText: {
-    color: "white",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
+  }
 });

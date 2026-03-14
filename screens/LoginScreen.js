@@ -1,9 +1,10 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../services/firebase";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,15 +25,18 @@ export default function LoginScreen({ navigation }) {
       const userDoc = await getDoc(userDocRef);
 
       if (userDoc.exists()) {
-        const userRole = userDoc.data().role;
+        const userData = userDoc.data();
+        const userRole = userData.role || 'user';
+        const userName = userData.name || email.split('@')[0];
+
         await AsyncStorage.setItem('userRole', userRole);
+        await AsyncStorage.setItem('userName', userName);
         
-        Alert.alert("Login Successful!");
         navigation.replace("Home");
       } else {
-        setErrorMsg("User data not found.");
+        setErrorMsg("User data not found in database.");
       }
-    } catch{
+    } catch (error) {
       setErrorMsg("Invalid email or password");
     }
   };
@@ -49,6 +53,7 @@ export default function LoginScreen({ navigation }) {
           keyboardType="email-address"
           autoCapitalize="none"
           style={styles.input}
+          placeholderTextColor="#94a3b8"
         />
 
         <TextInput
@@ -57,6 +62,7 @@ export default function LoginScreen({ navigation }) {
           value={password}
           onChangeText={setPassword}
           style={styles.input}
+          placeholderTextColor="#94a3b8"
         />
 
         {errorMsg ? <Text style={styles.error}>{errorMsg}</Text> : null}
