@@ -27,7 +27,7 @@ export default function LoginScreen({ navigation }) {
       if (userDoc.exists()) {
         const userData = userDoc.data();
         const userRole = userData.role || 'user';
-        const userName = userData.name || email.split('@')[0];
+        const userName = userData.fullName || email.split('@')[0];
 
         await AsyncStorage.setItem('userRole', userRole);
         await AsyncStorage.setItem('userName', userName);
