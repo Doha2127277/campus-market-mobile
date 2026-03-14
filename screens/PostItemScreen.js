@@ -104,7 +104,7 @@ const PostItemScreen = ({ navigation }) => {
       setPrice("");
       setPhoto(null);
 
-    } catch (error) {
+    } catch {
       Alert.alert("Error", "Error adding product");
     } finally {
       setLoading(false);

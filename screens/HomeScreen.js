@@ -30,7 +30,10 @@ export default function HomeScreen() {
       const currentUser = auth.currentUser;
       setUser(currentUser);
       if (currentUser) {
-        AsyncStorage.getItem('userRole').then((role) => setUserRole(role));
+        AsyncStorage.getItem('userRole').then((role) => {
+          console.log("Role from storage:", role);
+          setUserRole(role);
+        });
       } else {
         setUserRole(null);
       }
@@ -42,8 +45,8 @@ export default function HomeScreen() {
     if (!user) {
       navigation.navigate('Login');
     } else if (screenName === "AllRequests" && userRole !== 'admin') {
-    Alert.alert("Access Denied", "Admins only");
-  }else {
+      Alert.alert("Access Denied", "Admins only");
+    } else {
       navigation.navigate(screenName);
     }
   };
