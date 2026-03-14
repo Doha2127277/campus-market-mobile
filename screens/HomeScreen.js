@@ -8,10 +8,13 @@ import {
   ScrollView,
   Dimensions,
   Platform,
-  SafeAreaView,
-  StatusBar
+  StatusBar,
+  Alert
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import { auth } from "../services/firebase";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const isWeb = Platform.OS === "web";
@@ -19,19 +22,68 @@ const isWeb = Platform.OS === "web";
 export default function HomeScreen() {
   const navigation = useNavigation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [user, setUser] = useState(null);
+  const [userRole, setUserRole] = useState(null);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const currentUser = auth.currentUser;
+      setUser(currentUser);
+      if (currentUser) {
+        AsyncStorage.getItem('userRole').then((role) => setUserRole(role));
+      } else {
+        setUserRole(null);
+      }
+    }, [])
+  );
+
+  const handleProtectedNavigation = (screenName) => {
+    setMenuOpen(false);
+    if (!user) {
+      navigation.navigate('Login');
+    } else if (screenName === "AllRequests" && userRole !== 'admin') {
+    Alert.alert("Access Denied", "Admins only");
+  }else {
+      navigation.navigate(screenName);
+    }
+  };
+
+  const handleLogout = async () => {
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to logout?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await auth.signOut();
+              await AsyncStorage.removeItem('userRole');
+              setUser(null);
+              setUserRole(null);
+              setMenuOpen(false);
+              navigation.replace("Home");
+            } catch {
+              Alert.alert("Error", "Failed to logout");
+            }
+          }
+        }
+      ]
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" />
-      
+
       <View style={styles.mainWrapper}>
         <ScrollView style={styles.container} bounces={false}>
-          
           <View style={styles.navbar}>
             <View style={styles.navContent}>
               <View style={styles.navLeft}>
                 <Text style={styles.logo}>CAMPUS.</Text>
-
                 <View style={styles.searchBox}>
                   <Text style={styles.searchIcon}>🔍</Text>
                   <TextInput
@@ -43,12 +95,26 @@ export default function HomeScreen() {
               </View>
 
               <View style={styles.navRight}>
-                <Pressable
-                  style={styles.loginBtn}
-                  onPress={() => navigation.navigate("Login")}
-                >
-                  <Text style={styles.loginText}>Sign In</Text>
-                </Pressable>
+                {!user ? (
+                  <Pressable
+                    style={styles.loginBtn}
+                    onPress={() => navigation.navigate("Login")}
+                  >
+                    <Text style={styles.loginText}>Sign In</Text>
+                  </Pressable>
+                ) : (
+                  <>
+                    <Text style={styles.userNameText}>
+                      Hi, {user.email?.split('@')[0]}
+                    </Text>
+                    <Pressable
+                      style={styles.logoutBtn}
+                      onPress={handleLogout}
+                    >
+                      <Text style={styles.logoutText}>Logout</Text>
+                    </Pressable>
+                  </>
+                )}
 
                 <Pressable
                   style={styles.menuBtn}
@@ -62,45 +128,50 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          {/* HERO SECTION */}
           <View style={styles.hero}>
             <Text style={styles.heroTitle}>Welcome to Campus Market</Text>
             <Text style={styles.heroSubtitle}>
               The most trusted marketplace to buy and sell textbooks, electronics,
               and student essentials within your university community.
             </Text>
-            
-            <Pressable style={styles.ctaButton} onPress={() => navigation.navigate("AllRequests")}>
-                <Text style={styles.ctaText}>Explore Products</Text>
+
+            <Pressable
+              style={styles.ctaButton}
+              onPress={() => handleProtectedNavigation("AllRequests")}
+            >
+              <Text style={styles.ctaText}>Explore Products</Text>
             </Pressable>
           </View>
-
-          
         </ScrollView>
 
         {menuOpen && (
           <View style={styles.dropdownOverlay}>
             <View style={styles.dropdownCard}>
-              <Pressable 
-                style={styles.dropdownItem} 
-                onPress={() => { setMenuOpen(false); navigation.navigate("MyProducts"); }}
+              <Pressable
+                style={styles.dropdownItem}
+                onPress={() => handleProtectedNavigation("MyProducts")}
               >
                 <Text style={styles.dropdownText}>📦 My Inventory</Text>
               </Pressable>
-              
-              <Pressable 
-                style={styles.dropdownItem} 
-                onPress={() => { setMenuOpen(false); navigation.navigate("AddOrder"); }}
+
+              <Pressable
+                style={styles.dropdownItem}
+                onPress={() => handleProtectedNavigation("AddOrder")}
               >
                 <Text style={styles.dropdownText}>➕ Post Item</Text>
               </Pressable>
-              
-              <Pressable 
-                style={[styles.dropdownItem, { borderBottomWidth: 0 }]} 
-                onPress={() => { setMenuOpen(false); navigation.navigate("AllRequests"); }}
-              >
-                <Text style={styles.dropdownText}>📋 Admin Dashboard</Text>
-              </Pressable>
+
+              {userRole === 'admin' && (
+                <Pressable
+                  style={[styles.dropdownItem, { borderBottomWidth: 0 }]}
+                  onPress={() => {
+                    setMenuOpen(false);
+                    navigation.navigate("AllRequests");
+                  }}
+                >
+                  <Text style={styles.dropdownText}>📋 Admin Dashboard</Text>
+                </Pressable>
+              )}
             </View>
           </View>
         )}
@@ -112,8 +183,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#1e293b", 
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+    backgroundColor: "#1e293b",
   },
   mainWrapper: {
     flex: 1,
@@ -163,7 +233,7 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 14,
     flex: 1,
-    padding: 0, 
+    padding: 0,
   },
   navRight: {
     flexDirection: "row",
@@ -182,6 +252,18 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 14,
   },
+  logoutBtn: {
+    backgroundColor: "#ef4444",
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    marginRight: 10,
+  },
+  logoutText: {
+    color: "white",
+    fontWeight: "600",
+    fontSize: 14,
+  },
   menuBtn: {
     backgroundColor: "#10b981",
     width: 38,
@@ -195,10 +277,15 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
   },
-  
+  userNameText: {
+    color: "white",
+    fontWeight: "500",
+    fontSize: 14,
+    marginRight: 10,
+  },
   dropdownOverlay: {
     position: "absolute",
-    top: isWeb ? 65 : 55, 
+    top: isWeb ? 65 : 55,
     right: 15,
     zIndex: 1000,
     ...Platform.select({
@@ -232,7 +319,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "500",
   },
-
   hero: {
     paddingHorizontal: 20,
     paddingVertical: 50,
@@ -264,5 +350,5 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "bold",
     fontSize: 16,
-  }
+  },
 });

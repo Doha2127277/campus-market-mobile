@@ -10,7 +10,7 @@ import {
   Alert
 } from "react-native";
 
-import { db, auth } from "../firebase";
+import { db, auth } from "../services/firebase";
 import {
   collection,
   query,

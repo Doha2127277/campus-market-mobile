@@ -9,7 +9,7 @@ import {
     Alert,
     Platform
 } from 'react-native';
-import { db, auth } from "../firebase"; 
+import { db, auth } from "../services/firebase"; 
 import { collection, query, where, onSnapshot, updateDoc, doc, getDoc } from "firebase/firestore";
 
 const AdminDashboardScreen = () => {

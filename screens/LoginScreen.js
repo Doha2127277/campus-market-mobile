@@ -1,9 +1,9 @@
-// screens/LoginScreen.js
 import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet } from "react-native";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../services/firebase";
-
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "../services/firebase";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -17,51 +17,65 @@ export default function LoginScreen({ navigation }) {
     }
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      Alert.alert("Login Successful!");
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      const userDocRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (userDoc.exists()) {
+        const userRole = userDoc.data().role;
+        await AsyncStorage.setItem('userRole', userRole);
+        
+        Alert.alert("Login Successful!");
+        navigation.replace("Home");
+      } else {
+        setErrorMsg("User data not found.");
+      }
     } catch{
       setErrorMsg("Invalid email or password");
     }
   };
- return (
-  <View style={styles.container}>
-    <View style={styles.top}>
-      <Text style={styles.title}>Login to Campus Market</Text>
+  
+  return (
+    <View style={styles.container}>
+      <View style={styles.top}>
+        <Text style={styles.title}>Login to Campus Market</Text>
 
-      <TextInput
-        placeholder="Enter university email"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-        style={styles.input}
-      />
+        <TextInput
+          placeholder="Enter university email"
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          style={styles.input}
+        />
 
-      <TextInput
-        placeholder="Enter your password"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-        style={styles.input}
-      />
+        <TextInput
+          placeholder="Enter your password"
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+          style={styles.input}
+        />
 
-      {errorMsg ? <Text style={styles.error}>{errorMsg}</Text> : null}
+        {errorMsg ? <Text style={styles.error}>{errorMsg}</Text> : null}
 
-      <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}>
-        <Text style={styles.loginText}>Login</Text>
-      </TouchableOpacity>
+        <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}>
+          <Text style={styles.loginText}>Login</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.links}>
+        <TouchableOpacity onPress={() => navigation.navigate("ForgetPassword")}>
+          <Text style={styles.linkText}>Forgot Password?</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate("Register")}>
+          <Text style={styles.linkText}>Create an Account</Text>
+        </TouchableOpacity>
+      </View>
     </View>
-
-    <View style={styles.links}>
-      <TouchableOpacity onPress={() => navigation.navigate("ForgetPassword")}>
-        <Text style={styles.linkText}>Forgot Password?</Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => navigation.navigate("Register")}>
-        <Text style={styles.linkText}>Create an Account</Text>
-      </TouchableOpacity>
-    </View>
-  </View>
-);
+  );
 }
 
 const styles = StyleSheet.create({
@@ -104,16 +118,15 @@ const styles = StyleSheet.create({
     color: "#fff",
     textAlign: "center",
     fontWeight: "600",
-
   },
   links: {
-  marginTop: 15,
-  alignItems: "center", 
-},
-linkText: {
-  color: "#4B7BEC",       
-  fontWeight: "600",
-  textDecorationLine: "underline", 
-  marginVertical: 5,      
-},
+    marginTop: 15,
+    alignItems: "center", 
+  },
+  linkText: {
+    color: "#4B7BEC",       
+    fontWeight: "600",
+    textDecorationLine: "underline", 
+    marginVertical: 5,      
+  },
 });
