@@ -26,21 +26,28 @@ export default function HomeScreen() {
   const [userName, setUserName] = useState("");
 
   useEffect(() => {
+    let isMounted = true;
     const unsubscribe = onAuthStateChanged(auth, async (authenticatedUser) => {
       if (authenticatedUser) {
-        setUser(authenticatedUser);
         const role = await AsyncStorage.getItem('userRole');
         const name = await AsyncStorage.getItem('userName');
-        console.log("Current User Role:", role);
-        setUserRole(role);
-        setUserName(name || authenticatedUser.email?.split('@')[0]);
+        if (isMounted) {
+          setUser(authenticatedUser);
+          setUserRole(role);
+          setUserName(name || authenticatedUser.email?.split('@')[0]);
+        }
       } else {
-        setUser(null);
-        setUserRole(null);
-        setUserName("");
+        if (isMounted) {
+          setUser(null);
+          setUserRole(null);
+          setUserName("");
+        }
       }
     });
-    return unsubscribe;
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, []);
 
   useFocusEffect(
@@ -93,9 +100,12 @@ export default function HomeScreen() {
 
   const performLogout = async () => {
     try {
+      setMenuOpen(false);
       await signOut(auth);
       await AsyncStorage.multiRemove(['userRole', 'userName']);
-      setMenuOpen(false);
+     if (!isWeb) {
+        Alert.alert("Logged Out", "You are now browsing as a guest.");
+      }
     } catch {
       if (isWeb) {
         alert("Failed to logout");
