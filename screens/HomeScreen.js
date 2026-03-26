@@ -21,7 +21,7 @@ const ProductCard = memo(({ item, onPress }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
-    Animated.spring(scaleAnim, { toValue: 0.95, useNativeDriver: true }).start();
+    Animated.spring(scaleAnim, { toValue: 0.96, useNativeDriver: true }).start();
   };
 
   const handlePressOut = () => {
@@ -35,16 +35,36 @@ const ProductCard = memo(({ item, onPress }) => {
       onPress={() => onPress(item)}
     >
       <Animated.View style={[styles.productCard, { transform: [{ scale: scaleAnim }] }]}>
-        <Image source={{ uri: item.photoURL || "https://via.placeholder.com/300" }} style={styles.productImage} />
-        <View style={styles.badgeContainer}>
-          <View style={[styles.modeBadge, { backgroundColor: item.mode === 'For Sale' ? '#3b82f6' : '#10b981' }]}>
-            <Text style={styles.modeText}>{item.mode}</Text>
+        {/* الصورة والـ Badge */}
+        <View style={styles.imageContainer}>
+          <Image 
+            source={{ uri: item.photoURL || "https://via.placeholder.com/300" }} 
+            style={styles.productImage} 
+            resizeMode="cover"
+          />
+          <View style={styles.badgeContainer}>
+            <View style={[styles.modeBadge, { backgroundColor: item.mode === 'For Sale' ? '#47d40e' : '#c01b1b' }]}>
+              <Text style={styles.modeText}>{item.mode === 'For Sale' ? '💰 Sale' : '🤝 FREE'}</Text>
+            </View>
           </View>
         </View>
         <View style={styles.productInfo}>
-          <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
-          <Text style={styles.productPrice}>{item.price} EGP</Text>
           <Text style={styles.productCategoryText}>{item.category}</Text>
+          <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
+          
+          <View style={styles.priceRow}>
+            <View>
+              <Text style={styles.productPrice}>{item.price} <Text style={styles.currencyText}>EGP</Text></Text>
+            </View>
+          </View>
+
+          
+          <Pressable 
+            style={styles.detailsButton} 
+            onPress={() => onPress(item)}
+          >
+            <Text style={styles.detailsButtonText}>View Details</Text>
+          </Pressable>
         </View>
       </Animated.View>
     </Pressable>
@@ -63,7 +83,7 @@ export default function HomeScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
 
-  const categories = ["All", "Engineering", "Medicine", "Business", "Tools"];
+  const categories = ["All", "Engineering", "Medicine", "Business"];
   const slideAnim = useRef(new Animated.Value(MENU_WIDTH)).current; 
 
   const openMenu = () => {
@@ -167,7 +187,7 @@ export default function HomeScreen() {
   };
 
   return (
-    // التعديل هنا: edges={['top']} يشيل الفراغ الأبيض اللي تحت
+    
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
@@ -206,7 +226,7 @@ export default function HomeScreen() {
           )}
           numColumns={2}
           columnWrapperStyle={{ justifyContent: 'space-between', paddingHorizontal: 5 }}
-          // التعديل هنا: نضمن إن المحتوى يملأ الشاشة
+          
           contentContainerStyle={{ paddingBottom: 100, flexGrow: 1 }} 
           ListHeaderComponent={
             <>
@@ -271,43 +291,274 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: "#fff" },
-  headerSection: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 15 },
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
-  brandLogo: { fontSize: 24, fontWeight: '900', color: '#1e293b' },
-  headerActions: { flexDirection: 'row', alignItems: 'center' },
-  welcomeUser: { fontSize: 13, color: '#64748b', marginRight: 10, maxWidth: 80 },
-  iconCircle: { width: 40, height: 40, backgroundColor: '#f1f5f9', borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
-  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f1f5f9', borderRadius: 25, paddingHorizontal: 15, height: 45 },
-  mainSearchInput: { flex: 1, fontSize: 14 },
-  heroCard: { backgroundColor: '#1e293b', padding: 20, borderRadius: 20, marginHorizontal: 15, marginTop: 10, flexDirection: 'row', alignItems: 'center' },
-  heroTitle: { color: '#fff', fontSize: 20, fontWeight: '800' },
-  heroSub: { color: '#94a3b8', fontSize: 12, marginTop: 5 },
-  catScroll: { paddingLeft: 15, marginVertical: 15 },
-  catChip: { paddingHorizontal: 18, paddingVertical: 8, borderRadius: 20, backgroundColor: '#f1f5f9', marginRight: 10 },
-  catChipActive: { backgroundColor: '#3b82f6' },
-  catText: { fontSize: 13, color: '#64748b', fontWeight: '600' },
-  catTextActive: { color: '#fff' },
-  sectionTitle: { fontSize: 18, fontWeight: '700', marginLeft: 20, marginBottom: 10 },
-  productCard: { width: CARD_WIDTH, backgroundColor: '#fff', marginLeft: 15, marginBottom: 15, borderRadius: 16, elevation: 3, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 5 },
-  productImage: { width: '100%', height: 130, borderTopLeftRadius: 16, borderTopRightRadius: 16 },
-  badgeContainer: { position: 'absolute', top: 8, left: 8 },
-  modeBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  modeText: { color: '#fff', fontSize: 9, fontWeight: 'bold' },
-  productInfo: { padding: 10 },
-  productName: { fontSize: 13, fontWeight: '700' },
-  productPrice: { fontSize: 14, fontWeight: '800', color: '#3b82f6', marginVertical: 2 },
-  productCategoryText: { fontSize: 10, color: '#94a3b8' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyText: { textAlign: 'center', marginTop: 40, color: '#94a3b8' },
-  menuOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000, flexDirection: 'row' },
-  closeArea: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
-  menuContent: { width: MENU_WIDTH, backgroundColor: '#0f172a', padding: 20, paddingTop: 60, position: 'absolute', right: 0, top: 0, bottom: 0, shadowColor: "#000", shadowOffset: { width: -10, height: 0 }, shadowOpacity: 0.3, shadowRadius: 15, elevation: 10 },
-  menuHeader: { fontSize: 24, fontWeight: '900', color: '#fff', marginBottom: 5 },
-  menuUserRole: { backgroundColor: '#1e293b', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 4, alignSelf: 'flex-start', marginBottom: 30, borderWidth: 1, borderColor: '#334155' },
-  menuRoleText: { color: '#38bdf8', fontSize: 10, fontWeight: 'bold' },
-  menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, paddingHorizontal: 10, marginBottom: 5, borderBottomWidth: 0.5, borderBottomColor: '#334155' },
-  menuItemText: { fontSize: 16, color: '#f1f5f9', fontWeight: '500' },
-  logoutMenuItem: { backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: 15, borderRadius: 4, marginTop: 20 },
-  logoutMenuText: { color: '#f87171', fontWeight: 'bold', textAlign: 'center' }
+  safeArea: { 
+    flex: 1, 
+    backgroundColor: "#f8fafc" 
+  },
+  headerSection: { 
+    paddingHorizontal: 20, 
+    paddingTop: 10, 
+    paddingBottom: 15 
+  },
+  topRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 15 
+  },
+  brandLogo: { 
+    fontSize: 24, 
+    fontWeight: '900', 
+    color: '#1e293b' 
+  },
+  headerActions: { 
+    flexDirection: 'row', 
+    alignItems: 'center' 
+  },
+  welcomeUser: { 
+    fontSize: 13, 
+    color: '#64748b', 
+    marginRight: 10, 
+    maxWidth: 80 
+  },
+  iconCircle: { 
+    width: 40, 
+    height: 40, 
+    backgroundColor: '#f1f5f9', 
+    borderRadius: 20, 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  searchContainer: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: '#f1f5f9', 
+    borderRadius: 25, 
+    paddingHorizontal: 15, 
+    height: 45 
+  },
+  mainSearchInput: { 
+    flex: 1, 
+    fontSize: 14 
+  },
+  heroCard: { 
+    backgroundColor: '#1e293b', 
+    padding: 20, 
+    borderRadius: 20, 
+    marginHorizontal: 15, 
+    marginTop: 10, 
+    flexDirection: 'row', 
+    alignItems: 'center' 
+  },
+  heroTitle: { 
+    color: '#fff', 
+    fontSize: 20, 
+    fontWeight: '800' 
+  },
+  heroSub: { 
+    color: '#94a3b8', 
+    fontSize: 12, 
+    marginTop: 5 
+  },
+  catScroll: { 
+    paddingLeft: 15, 
+    marginVertical: 15 
+  },
+  catChip: { 
+    paddingHorizontal: 18, 
+    paddingVertical: 8, 
+    borderRadius: 20, 
+    backgroundColor: '#f1f5f9', 
+    marginRight: 10 
+  },
+  catChipActive: { 
+    backgroundColor: '#3b82f6' 
+  },
+  catText: { 
+    fontSize: 13, 
+    color: '#64748b', 
+    fontWeight: '600' 
+  },
+  catTextActive: { 
+    color: '#fff' 
+  },
+  sectionTitle: { 
+    fontSize: 18, 
+    fontWeight: '700', 
+    marginLeft: 20, 
+    marginBottom: 10 
+  },
+  productCard: { 
+    width: CARD_WIDTH, 
+    backgroundColor: '#ffffff', 
+    marginLeft: 15, 
+    marginBottom: 20, 
+    borderRadius: 20, 
+    elevation: 4, 
+    shadowColor: '#000', 
+    shadowOpacity: 0.08, 
+    shadowRadius: 10,
+    borderWidth: 1,
+    borderColor: '#f8fafc',
+    shadowOffset: { width: 0, height: 2 },
+    overflow: 'hidden'
+  },
+  imageContainer: {
+    width: '100%',
+    height: 130,
+    backgroundColor: '#f8fafc',
+  },
+  productImage: { 
+    width: '100%', 
+    height: '100%',
+  },
+  productInfo: { 
+    padding: 12,
+  },
+  productCategoryText: { 
+    fontSize: 10, 
+    color: '#94a3b8', 
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    marginBottom: 4
+  },
+  productName: { 
+    fontSize: 14, 
+    fontWeight: '700', 
+    color: '#1e293b',
+    marginBottom: 6
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 10
+  },
+  productPrice: { 
+    fontSize: 17, 
+    fontWeight: '900', 
+    color: '#2563eb' 
+  },
+  currencyText: {
+    fontSize: 10,
+    color: '#64748b',
+    fontWeight: '600'
+  },
+  detailsButton: {
+    backgroundColor: '#3b82f6',
+    paddingVertical: 10,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 5,
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  detailsButtonText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#fff',
+    textTransform: 'uppercase',
+  },
+  badgeContainer: { 
+    position: 'absolute', 
+    top: 8, 
+    left: 8 
+  },
+  modeBadge: { 
+    paddingHorizontal: 10, 
+    paddingVertical: 5, 
+    borderRadius: 8 
+  },
+  modeText: { 
+    color: '#fff', 
+    fontSize: 10, 
+    fontWeight: 'bold' 
+  },
+  center: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  emptyText: { 
+    textAlign: 'center', 
+    marginTop: 40, 
+    color: '#94a3b8' 
+  },
+  menuOverlay: { 
+    position: 'absolute', 
+    top: 0, 
+    left: 0, 
+    right: 0, 
+    bottom: 0, 
+    zIndex: 1000, 
+    flexDirection: 'row' 
+  },
+  closeArea: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0,0,0,0.5)' 
+  },
+  menuContent: { 
+    width: MENU_WIDTH, 
+    backgroundColor: '#0f172a', 
+    padding: 20, 
+    paddingTop: 60, 
+    position: 'absolute', 
+    right: 0, 
+    top: 0, 
+    bottom: 0, 
+    shadowColor: "#000", 
+    shadowOffset: { width: -10, height: 0 }, 
+    shadowOpacity: 0.3, 
+    shadowRadius: 15, 
+    elevation: 10 
+  },
+  menuHeader: { 
+    fontSize: 24, 
+    fontWeight: '900', 
+    color: '#fff', 
+    marginBottom: 5 
+  },
+  menuUserRole: { 
+    backgroundColor: '#1e293b', 
+    paddingHorizontal: 12, 
+    paddingVertical: 6, 
+    borderRadius: 4, 
+    alignSelf: 'flex-start', 
+    marginBottom: 30, 
+    borderWidth: 1, 
+    borderColor: '#334155' 
+  },
+  menuRoleText: { 
+    color: '#38bdf8', 
+    fontSize: 10, 
+    fontWeight: 'bold' 
+  },
+  menuItem: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    paddingVertical: 15, 
+    paddingHorizontal: 10, 
+    marginBottom: 5, 
+    borderBottomWidth: 0.5, 
+    borderBottomColor: '#334155' 
+  },
+  menuItemText: { 
+    fontSize: 16, 
+    color: '#f1f5f9', 
+    fontWeight: '500' 
+  },
+  logoutMenuItem: { 
+    backgroundColor: 'rgba(239, 68, 68, 0.1)', 
+    padding: 15, 
+    borderRadius: 4, 
+    marginTop: 20 
+  },
+  logoutMenuText: { 
+    color: '#f87171', 
+    fontWeight: 'bold', 
+    textAlign: 'center' 
+  }
 });
