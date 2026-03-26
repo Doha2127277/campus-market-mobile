@@ -16,22 +16,16 @@ const CARD_WIDTH = (width - 40) / 2;
 const MENU_WIDTH = 280;
 const isWeb = Platform.OS === "web";
 
+
 const ProductCard = memo(({ item, onPress }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 0.95,
-      useNativeDriver: true,
-    }).start();
+    Animated.spring(scaleAnim, { toValue: 0.95, useNativeDriver: true }).start();
   };
 
   const handlePressOut = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      friction: 3,
-      useNativeDriver: true,
-    }).start();
+    Animated.spring(scaleAnim, { toValue: 1, friction: 3, useNativeDriver: true }).start();
   };
 
   return (
@@ -74,20 +68,11 @@ export default function HomeScreen() {
 
   const openMenu = () => {
     setMenuOpen(true);
-    Animated.spring(slideAnim, {
-      toValue: 0,
-      tension: 40,
-      friction: 8,
-      useNativeDriver: true,
-    }).start();
+    Animated.spring(slideAnim, { toValue: 0, tension: 40, friction: 8, useNativeDriver: true }).start();
   };
 
   const closeMenu = () => {
-    Animated.timing(slideAnim, {
-      toValue: MENU_WIDTH,
-      duration: 250,
-      useNativeDriver: true,
-    }).start(() => setMenuOpen(false));
+    Animated.timing(slideAnim, { toValue: MENU_WIDTH, duration: 250, useNativeDriver: true }).start(() => setMenuOpen(false));
   };
 
   const panResponder = useRef(
@@ -98,11 +83,8 @@ export default function HomeScreen() {
         slideAnim.setValue(newX);
       },
       onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dx > 50 || gestureState.vx > 0.5) {
-          closeMenu();
-        } else {
-          openMenu();
-        }
+        if (gestureState.dx > 50 || gestureState.vx > 0.5) closeMenu();
+        else openMenu();
       },
     })
   ).current;
@@ -120,12 +102,8 @@ export default function HomeScreen() {
           setUserRole(role);
           setUserName(name || authenticatedUser.email?.split('@')[0]);
         }
-      } else {
-        if (isMounted) {
-          setUser(null);
-          setUserRole(null);
-          setUserName("");
-        }
+      } else if (isMounted) {
+        setUser(null); setUserRole(null); setUserName("");
       }
     });
     return () => { isMounted = false; unsubscribe(); };
@@ -168,22 +146,8 @@ export default function HomeScreen() {
 
   const handleProtectedNavigation = (screenName) => {
     closeMenu();
-    if (!user) {
-      navigation.navigate('Login');
-      return;
-    }
+    if (!user) { navigation.navigate('Login'); return; }
     navigation.navigate(screenName);
-  };
-
-  const handleLogout = async () => {
-    if (isWeb) {
-      if (window.confirm("Are you sure you want to logout?")) performLogout();
-      return;
-    }
-    Alert.alert("Logout", "Are you sure?", [
-      { text: "Cancel" },
-      { text: "Logout", onPress: performLogout }
-    ]);
   };
 
   const performLogout = async () => {
@@ -191,14 +155,21 @@ export default function HomeScreen() {
       closeMenu();
       await signOut(auth);
       await AsyncStorage.multiRemove(['userRole', 'userName']);
-    } catch (e) {
-      console.log(e);
+    } catch (e) { console.log(e); }
+  };
+
+  const handleLogout = async () => {
+    if (isWeb) {
+      if (window.confirm("Are you sure you want to logout?")) performLogout();
+      return;
     }
+    Alert.alert("Logout", "Are you sure?", [{ text: "Cancel" }, { text: "Logout", onPress: performLogout }]);
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" />
+    // التعديل هنا: edges={['top']} يشيل الفراغ الأبيض اللي تحت
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
       <View style={styles.headerSection}>
         <View style={styles.topRow}>
@@ -235,6 +206,8 @@ export default function HomeScreen() {
           )}
           numColumns={2}
           columnWrapperStyle={{ justifyContent: 'space-between', paddingHorizontal: 5 }}
+          // التعديل هنا: نضمن إن المحتوى يملأ الشاشة
+          contentContainerStyle={{ paddingBottom: 100, flexGrow: 1 }} 
           ListHeaderComponent={
             <>
               <View style={styles.heroCard}>
@@ -255,7 +228,6 @@ export default function HomeScreen() {
               <Text style={styles.sectionTitle}>Latest Items</Text>
             </>
           }
-          contentContainerStyle={{ paddingBottom: 20 }}
           ListEmptyComponent={<Text style={styles.emptyText}>No items found.</Text>}
         />
       )}
@@ -265,38 +237,29 @@ export default function HomeScreen() {
           <Pressable style={styles.closeArea} onPress={closeMenu} />
           <Animated.View 
             {...panResponder.panHandlers}
-            style={[
-              styles.menuContent, 
-              { transform: [{ translateX: slideAnim }] }
-            ]}
+            style={[styles.menuContent, { transform: [{ translateX: slideAnim }] }]}
           >
             <Text style={styles.menuHeader}>CAMPUS.</Text>
             <View style={styles.menuUserRole}><Text style={styles.menuRoleText}>{userRole || 'Guest'}</Text></View>
-
             <Pressable style={styles.menuItem} onPress={() => handleProtectedNavigation("AddOrder")}>
               <Text style={styles.menuItemText}>➕ Post New Item</Text>
             </Pressable>
-
             <Pressable style={styles.menuItem} onPress={() => handleProtectedNavigation("MyProducts")}>
               <Text style={styles.menuItemText}>📦 My Inventory</Text>
             </Pressable>
-
             {userRole === 'admin' && (
               <Pressable style={styles.menuItem} onPress={() => handleProtectedNavigation("AllRequests")}>
                 <Text style={styles.menuItemText}>🛡️ Admin Panel</Text>
               </Pressable>
             )}
-
             <View style={{ flex: 1 }} />
             {user ? (
               <Pressable style={styles.logoutMenuItem} onPress={handleLogout}>
                 <Text style={styles.logoutMenuText}>Sign Out</Text>
               </Pressable>
             ) : (
-              <Pressable
-                style={[styles.logoutMenuItem, { backgroundColor: '#3b82f6' }]}
-                onPress={() => { closeMenu(); navigation.navigate("Login") }}
-              >
+              <Pressable style={[styles.logoutMenuItem, { backgroundColor: '#3b82f6' }]}
+                onPress={() => { closeMenu(); navigation.navigate("Login") }}>
                 <Text style={[styles.logoutMenuText, { color: '#fff' }]}>Login</Text>
               </Pressable>
             )}
@@ -339,21 +302,7 @@ const styles = StyleSheet.create({
   emptyText: { textAlign: 'center', marginTop: 40, color: '#94a3b8' },
   menuOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000, flexDirection: 'row' },
   closeArea: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
-  menuContent: { 
-    width: MENU_WIDTH, 
-    backgroundColor: '#0f172a', 
-    padding: 20, 
-    paddingTop: 60, 
-    position: 'absolute', 
-    right: 0, 
-    top: 0,
-    bottom: 0,
-    shadowColor: "#000", 
-    shadowOffset: { width: -10, height: 0 },
-    shadowOpacity: 0.3, 
-    shadowRadius: 15, 
-    elevation: 10 
-  },
+  menuContent: { width: MENU_WIDTH, backgroundColor: '#0f172a', padding: 20, paddingTop: 60, position: 'absolute', right: 0, top: 0, bottom: 0, shadowColor: "#000", shadowOffset: { width: -10, height: 0 }, shadowOpacity: 0.3, shadowRadius: 15, elevation: 10 },
   menuHeader: { fontSize: 24, fontWeight: '900', color: '#fff', marginBottom: 5 },
   menuUserRole: { backgroundColor: '#1e293b', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 4, alignSelf: 'flex-start', marginBottom: 30, borderWidth: 1, borderColor: '#334155' },
   menuRoleText: { color: '#38bdf8', fontSize: 10, fontWeight: 'bold' },
