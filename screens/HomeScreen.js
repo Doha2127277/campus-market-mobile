@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef, memo } from "react"; 
 import {
   View, Text, TextInput, Pressable, StyleSheet, Platform, StatusBar,
-  Alert, FlatList, Image, ActivityIndicator, Dimensions, ScrollView
+  Alert, FlatList, Image, ActivityIndicator, Dimensions, ScrollView,
+  Animated, PanResponder 
 } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { auth, db } from "../services/firebase";
@@ -14,6 +15,48 @@ const { width } = Dimensions.get("window");
 const CARD_WIDTH = (width - 40) / 2;
 const MENU_WIDTH = 280;
 const isWeb = Platform.OS === "web";
+
+const ProductCard = memo(({ item, onPress }) => {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.95,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      friction: 3,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  return (
+    <Pressable 
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      onPress={() => onPress(item)}
+    >
+      <Animated.View style={[styles.productCard, { transform: [{ scale: scaleAnim }] }]}>
+        <Image source={{ uri: item.photoURL || "https://via.placeholder.com/300" }} style={styles.productImage} />
+        <View style={styles.badgeContainer}>
+          <View style={[styles.modeBadge, { backgroundColor: item.mode === 'For Sale' ? '#3b82f6' : '#10b981' }]}>
+            <Text style={styles.modeText}>{item.mode}</Text>
+          </View>
+        </View>
+        <View style={styles.productInfo}>
+          <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
+          <Text style={styles.productPrice}>{item.price} EGP</Text>
+          <Text style={styles.productCategoryText}>{item.category}</Text>
+        </View>
+      </Animated.View>
+    </Pressable>
+  );
+});
+ProductCard.displayName = "ProductCard";
 export default function HomeScreen() {
   const navigation = useNavigation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -27,6 +70,43 @@ export default function HomeScreen() {
   const [activeCategory, setActiveCategory] = useState("All");
 
   const categories = ["All", "Engineering", "Medicine", "Business", "Tools"];
+  const slideAnim = useRef(new Animated.Value(MENU_WIDTH)).current; 
+
+  const openMenu = () => {
+    setMenuOpen(true);
+    Animated.spring(slideAnim, {
+      toValue: 0,
+      tension: 40,
+      friction: 8,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const closeMenu = () => {
+    Animated.timing(slideAnim, {
+      toValue: MENU_WIDTH,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => setMenuOpen(false));
+  };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) => menuOpen && gestureState.dx > 10,
+      onPanResponderMove: (_, gestureState) => {
+        let newX = Math.max(0, Math.min(MENU_WIDTH, gestureState.dx));
+        slideAnim.setValue(newX);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dx > 50 || gestureState.vx > 0.5) {
+          closeMenu();
+        } else {
+          openMenu();
+        }
+      },
+    })
+  ).current;
+
   useEffect(() => {
     let isMounted = true;
     const unsubscribe = onAuthStateChanged(auth, async (authenticatedUser) => {
@@ -63,7 +143,6 @@ export default function HomeScreen() {
     }, [])
   );
 
-
   useEffect(() => {
     const q = query(collection(db, "products"), where("status", "==", "approved"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -86,86 +165,47 @@ export default function HomeScreen() {
     setSearchQuery(text);
     filterProducts(text, activeCategory);
   };
+
   const handleProtectedNavigation = (screenName) => {
-    setMenuOpen(false);
+    closeMenu();
     if (!user) {
       navigation.navigate('Login');
       return;
     }
-
-    if (screenName === "AllRequests" && userRole !== 'admin') {
-      if (isWeb) {
-        alert("Access Denied: Admins only");
-      } else {
-        Alert.alert("Access Denied", "Admins only");
-      }
-    } else {
-      navigation.navigate(screenName);
-    }
+    navigation.navigate(screenName);
   };
 
   const handleLogout = async () => {
     if (isWeb) {
-      if (window.confirm("Are you sure you want to logout?")) {
-        performLogout();
-      }
+      if (window.confirm("Are you sure you want to logout?")) performLogout();
       return;
     }
-
-    Alert.alert(
-      "Logout",
-      "Are you sure you want to logout?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Logout", style: "destructive", onPress: performLogout }
-      ]
-    );
+    Alert.alert("Logout", "Are you sure?", [
+      { text: "Cancel" },
+      { text: "Logout", onPress: performLogout }
+    ]);
   };
 
   const performLogout = async () => {
     try {
-      setMenuOpen(false);
+      closeMenu();
       await signOut(auth);
       await AsyncStorage.multiRemove(['userRole', 'userName']);
-      if (!isWeb) {
-        Alert.alert("Logged Out", "You are now browsing as a guest.");
-      }
-    } catch {
-      if (isWeb) {
-        alert("Failed to logout");
-      } else {
-        Alert.alert("Error", "Failed to logout");
-      }
+    } catch (e) {
+      console.log(e);
     }
   };
-
-  const renderProduct = ({ item }) => (
-    <View style={styles.productCard}>
-      <Image source={{ uri: item.photoURL || "https://via.placeholder.com/300" }} style={styles.productImage} />
-      <View style={styles.badgeContainer}>
-        <View style={[styles.modeBadge, { backgroundColor: item.mode === 'For Sale' ? '#3b82f6' : '#10b981' }]}>
-          <Text style={styles.modeText}>{item.mode}</Text>
-        </View>
-      </View>
-      <View style={styles.productInfo}>
-        <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
-        <Text style={styles.productPrice}>{item.price} EGP</Text>
-        <Text style={styles.productCategoryText}>{item.category}</Text>
-      </View>
-    </View>
-  );
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" />
 
-      {/* Header */}
       <View style={styles.headerSection}>
         <View style={styles.topRow}>
           <Text style={styles.brandLogo}>CAMPUS<Text style={{ color: '#3b82f6' }}>.</Text></Text>
           <View style={styles.headerActions}>
             {user && <Text style={styles.welcomeUser} numberOfLines={1}>Hi, {userName}</Text>}
-            <Pressable style={styles.iconCircle} onPress={() => setMenuOpen(true)}>
+            <Pressable style={styles.iconCircle} onPress={openMenu}>
               <Text style={{ fontSize: 20 }}>☰</Text>
             </Pressable>
           </View>
@@ -181,14 +221,18 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* Main List */}
       {loading ? (
         <View style={styles.center}><ActivityIndicator size="large" color="#3b82f6" /></View>
       ) : (
         <FlatList
           data={filteredProducts}
           keyExtractor={(item) => item.id}
-          renderItem={renderProduct}
+          renderItem={({ item }) => (
+            <ProductCard 
+              item={item} 
+              onPress={(prod) => navigation.navigate("ProductDetails", { product: prod })} 
+            />
+          )}
           numColumns={2}
           columnWrapperStyle={{ justifyContent: 'space-between', paddingHorizontal: 5 }}
           ListHeaderComponent={
@@ -216,24 +260,29 @@ export default function HomeScreen() {
         />
       )}
 
-      {/* Side Menu - Dark Theme */}
       {menuOpen && (
         <View style={styles.menuOverlay}>
-          <Pressable style={styles.closeArea} onPress={() => setMenuOpen(false)} />
-          <View style={styles.menuContent}>
+          <Pressable style={styles.closeArea} onPress={closeMenu} />
+          <Animated.View 
+            {...panResponder.panHandlers}
+            style={[
+              styles.menuContent, 
+              { transform: [{ translateX: slideAnim }] }
+            ]}
+          >
             <Text style={styles.menuHeader}>CAMPUS.</Text>
             <View style={styles.menuUserRole}><Text style={styles.menuRoleText}>{userRole || 'Guest'}</Text></View>
 
-            <Pressable style={styles.menuItem} onPress={() => { handleProtectedNavigation("AddOrder") }}>
+            <Pressable style={styles.menuItem} onPress={() => handleProtectedNavigation("AddOrder")}>
               <Text style={styles.menuItemText}>➕ Post New Item</Text>
             </Pressable>
 
-            <Pressable style={styles.menuItem} onPress={() => { handleProtectedNavigation("MyProducts") }}>
+            <Pressable style={styles.menuItem} onPress={() => handleProtectedNavigation("MyProducts")}>
               <Text style={styles.menuItemText}>📦 My Inventory</Text>
             </Pressable>
 
             {userRole === 'admin' && (
-              <Pressable style={styles.menuItem} onPress={() => { handleProtectedNavigation("AllRequests") }}>
+              <Pressable style={styles.menuItem} onPress={() => handleProtectedNavigation("AllRequests")}>
                 <Text style={styles.menuItemText}>🛡️ Admin Panel</Text>
               </Pressable>
             )}
@@ -246,12 +295,12 @@ export default function HomeScreen() {
             ) : (
               <Pressable
                 style={[styles.logoutMenuItem, { backgroundColor: '#3b82f6' }]}
-                onPress={() => { setMenuOpen(false); navigation.navigate("Login") }}
+                onPress={() => { closeMenu(); navigation.navigate("Login") }}
               >
-                <Text style={[styles.logoutMenuText, { color: '#fff' }]}>Login to your account</Text>
+                <Text style={[styles.logoutMenuText, { color: '#fff' }]}>Login</Text>
               </Pressable>
             )}
-          </View>
+          </Animated.View>
         </View>
       )}
     </SafeAreaView>
@@ -291,23 +340,25 @@ const styles = StyleSheet.create({
   menuOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000, flexDirection: 'row' },
   closeArea: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   menuContent: { 
-    width: 280, 
+    width: MENU_WIDTH, 
     backgroundColor: '#0f172a', 
     padding: 20, 
     paddingTop: 60, 
-    borderTopRightRadius: 30, 
-    borderBottomRightRadius: 30, 
+    position: 'absolute', 
+    right: 0, 
+    top: 0,
+    bottom: 0,
     shadowColor: "#000", 
-    shadowOffset: { width: 10, height: 0 }, 
+    shadowOffset: { width: -10, height: 0 },
     shadowOpacity: 0.3, 
     shadowRadius: 15, 
     elevation: 10 
   },
-  menuHeader: { fontSize: 28, fontWeight: '900', color: '#fff', marginBottom: 5, letterSpacing: 1 },
-  menuUserRole: { backgroundColor: '#1e293b', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, alignSelf: 'flex-start', marginBottom: 30, borderWidth: 1, borderColor: '#334155' },
-  menuRoleText: { color: '#38bdf8', fontSize: 11, fontWeight: 'bold', letterSpacing: 0.5 },
-  menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, paddingHorizontal: 15, borderRadius: 15, marginBottom: 10, backgroundColor: 'rgba(255,255,255,0.03)' },
-  menuItemText: { fontSize: 16, color: '#cbd5e1', fontWeight: '600', marginLeft: 12 },
-  logoutMenuItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ef4444', padding: 15, borderRadius: 15, marginTop: 20, marginBottom: 30 },
-  logoutMenuText: { color: '#fff', fontWeight: 'bold', fontSize: 16 }
+  menuHeader: { fontSize: 24, fontWeight: '900', color: '#fff', marginBottom: 5 },
+  menuUserRole: { backgroundColor: '#1e293b', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 4, alignSelf: 'flex-start', marginBottom: 30, borderWidth: 1, borderColor: '#334155' },
+  menuRoleText: { color: '#38bdf8', fontSize: 10, fontWeight: 'bold' },
+  menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, paddingHorizontal: 10, marginBottom: 5, borderBottomWidth: 0.5, borderBottomColor: '#334155' },
+  menuItemText: { fontSize: 16, color: '#f1f5f9', fontWeight: '500' },
+  logoutMenuItem: { backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: 15, borderRadius: 4, marginTop: 20 },
+  logoutMenuText: { color: '#f87171', fontWeight: 'bold', textAlign: 'center' }
 });
