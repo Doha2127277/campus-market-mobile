@@ -36,13 +36,6 @@ export default function AppNavigator() {
     return unsubscribe;
   }, []);
 
-  if (isLoading) {
-  return (
-    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-      <ActivityIndicator size="large" />
-    </View>
-  );
-}
  if (isLoading) {
   return null;
 }
@@ -71,11 +64,11 @@ export default function AppNavigator() {
             component={AllRequestsScreen} 
             options={{ headerShown: false }}
           />
-           <Stack.Screen
+          <Stack.Screen
             name="ProductDetails"
             component={ProductDetailsScreen}
             options={{ headerShown: false }}
-          /> 
+          />
         </Stack.Group>
       ) : (
         <Stack.Group>
