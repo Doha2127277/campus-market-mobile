@@ -13,7 +13,7 @@ import {
 import { db, auth } from "../services/firebase";
 import { collection, query, where, onSnapshot, updateDoc, doc, getDoc } from "firebase/firestore";
 
-const AdminDashboardScreen = () => {
+const AdminDashboardScreen = ({ navigation }) => {
     const [requests, setRequests] = useState([]);
     const [loading, setLoading] = useState(true);
     const [userNames, setUserNames] = useState({});
@@ -77,7 +77,6 @@ const AdminDashboardScreen = () => {
                         onPress: async () => {
                             try {
                                 await updateDoc(doc(db, "products", id), { status: "rejected" });
-                                // تم حذف Alert النجاح من هنا
                             } catch {
                                 Alert.alert("Error", "Action failed");
                             }
@@ -87,7 +86,6 @@ const AdminDashboardScreen = () => {
         } else {
             try {
                 await updateDoc(doc(db, "products", id), { status: "approved" });
-                // تم حذف Alert النجاح من هنا
             } catch {
                 Alert.alert("Error", "Action failed");
             }
@@ -106,7 +104,10 @@ const AdminDashboardScreen = () => {
     }
 
     const renderRequestItem = ({ item }) => (
-        <View style={styles.requestRow}>
+        <TouchableOpacity 
+            style={styles.requestRow} 
+            onPress={() => navigation.navigate("ProductDetails", { id: item.id })}
+        >
             <Image
                 source={{ uri: item.photoURL || 'https://via.placeholder.com/150' }}
                 style={styles.productImage}
@@ -147,7 +148,7 @@ const AdminDashboardScreen = () => {
                     <Text style={styles.btnText}>✕</Text>
                 </TouchableOpacity>
             </View>
-        </View>
+        </TouchableOpacity>
     );
 
     return (
