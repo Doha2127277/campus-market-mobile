@@ -267,6 +267,9 @@ export default function HomeScreen() {
             <Pressable style={styles.menuItem} onPress={() => handleProtectedNavigation("MyProducts")}>
               <Text style={styles.menuItemText}>📦 My Inventory</Text>
             </Pressable>
+            <Pressable style={styles.menuItem} onPress={() => handleProtectedNavigation("MyRequests")}>
+  <Text style={styles.menuItemText}>📄 My Requests</Text>
+</Pressable>
             {userRole === 'admin' && (
               <Pressable style={styles.menuItem} onPress={() => handleProtectedNavigation("AllRequests")}>
                 <Text style={styles.menuItemText}>🛡️ Admin Panel</Text>

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useEffect, useState } from 'react';
 import { auth } from '../services/firebase';
 
 import AllRequestsScreen from '../screens/AdminDashBoardScreen';
@@ -8,12 +8,11 @@ import ForgetPasswordScreen from '../screens/ForgetPasswordScreen';
 import HomeScreen from '../screens/HomeScreen';
 import LoginScreen from '../screens/LoginScreen';
 import MyProductsScreen from '../screens/MyInventoryScreen';
+import MyRequestsScreen from '../screens/MyRequestsScreen';
 import AddOrderScreen from '../screens/PostItemScreen';
-import RegisterScreen from '../screens/RegisterScreen';
 import ProductDetailsScreen from '../screens/ProductDetailsScreen';
-
+import RegisterScreen from '../screens/RegisterScreen';
 const Stack = createNativeStackNavigator();
-
 export default function AppNavigator() {
   const [user, setUser] = useState(null);
   const [userRole, setUserRole] = useState(null);
@@ -69,6 +68,11 @@ export default function AppNavigator() {
             component={ProductDetailsScreen}
             options={{ headerShown: false }}
           />
+          <Stack.Screen
+  name="MyRequests"
+  component={MyRequestsScreen}
+  options={{ headerShown: false }}
+/>
         </Stack.Group>
       ) : (
         <Stack.Group>

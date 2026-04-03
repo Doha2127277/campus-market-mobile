@@ -1,114 +1,163 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, Image, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, Alert, Linking } from "react-native";
-import { useRoute, useNavigation } from "@react-navigation/native";
-import { db } from "../services/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import React, { useState } from "react";
+import { 
+  View, 
+  Text, 
+  Image, 
+  StyleSheet, 
+  Pressable, 
+  ScrollView, 
+  Alert,
+  SafeAreaView
+} from "react-native";
+import { db, auth } from "../services/firebase"; // تأكدي من المسار
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
-export default function ProductDetails() {
-  const route = useRoute();
-  const navigation = useNavigation();
-  
-  // التعديل الجوهري هنا: بنقرأ الـ id من جوه الـ product اللي جاي في الـ params
-  const productId = route.params?.product?.id || route.params?.id; 
+export default function ProductDetailsScreen({ route, navigation }) {
+  const { product } = route.params;
+  const [loading, setLoading] = useState(false);
 
-  const [product, setProduct] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const handleBuyNow = async () => {
+    if (!auth.currentUser) {
+      Alert.alert("Hold on!", "You must log in first to make a request.", [
+        { text: "Cancel" },
+        { text: "Login", onPress: () => navigation.navigate("Login") }
+      ]);
+      return;
+    }
 
-  useEffect(() => {
-    // لو البيانات مبعوتة كاملة أصلاً في الـ params، نستخدمها علطول بدل ما نكلم Firebase
-    if (route.params?.product) {
-      setProduct(route.params.product);
+    setLoading(true);
+    try {
+      // إرسال الطلب لـ Firestore بنفس الهيكل اللي الويب بيستخدمه
+      await addDoc(collection(db, "orders"), {
+        productId: product.id,
+        productName: product.name,
+        buyerId: auth.currentUser.uid,
+        buyerName: auth.currentUser.displayName || auth.currentUser.email.split('@')[0],
+        sellerId: product.userId || "unknown", // تأكدي إن الداتا فيها userId لصاحب المنتج
+        status: "pending",
+        paymentMethod: "cash_on_delivery",
+        createdAt: serverTimestamp()
+      });
+
+      Alert.alert(
+        "Success! 🎉", 
+        "Order created successfully! Check 'My Requests' for updates.",
+        [{ text: "OK", onPress: () => navigation.navigate("MyRequests") }]
+      );
+    } catch (error) {
+      console.error("Error creating order:", error);
+      Alert.alert("Error", "Could not create order. Please try again.");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    if (!productId) {
-      Alert.alert("خطأ", "لم يتم العثور على معرّف المنتج.");
-      if (navigation.canGoBack()) navigation.goBack();
-      return;
-    }
-
-    const getProductData = async () => {
-      try {
-        const docRef = doc(db, "products", productId);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setProduct(docSnap.data());
-        }
-      } catch (error) {
-        console.log("Firebase Error:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    getProductData();
-  }, [productId, route.params?.product]);
-
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#2563eb" />
-      </View>
-    );
-  }
-
-  if (!product) {
-    return (
-      <View style={styles.center}>
-        <Text>جاري تحميل البيانات...</Text>
-      </View>
-    );
-  }
+  };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      {/* عرض الصورة مع التأكد من وجودها */}
-      <Image 
-        source={{ uri: product.photoURL || "https://via.placeholder.com/350" }} 
-        style={styles.image} 
-        resizeMode="cover" 
-      />
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView contentContainerStyle={styles.container}>
+        {/* زر الرجوع */}
+        <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Text style={{fontSize: 20}}>⬅️</Text>
+        </Pressable>
 
-      <View style={styles.infoContainer}>
-        <Text style={styles.name}>{product.name}</Text>
-        <Text style={styles.price}>{product.price} EGP</Text>
-        
-        <View style={styles.tagContainer}>
-          <Text style={styles.tag}>القسم: {product.category}</Text>
-          <Text style={styles.tag}>الحالة: {product.status === 'approved' ? 'مقبول' : 'انتظار'}</Text>
+        <View style={styles.imageCard}>
+          <Image
+            source={{ uri: product.photoURL || "https://via.placeholder.com/300" }}
+            style={styles.image}
+          />
         </View>
 
-        <View style={styles.descriptionBox}>
-          <Text style={styles.descriptionTitle}>الوصف:</Text>
-          <Text style={styles.description}>{product.description}</Text>
-        </View>
+        <View style={styles.detailsContainer}>
+          <Text style={styles.category}>{product.category}</Text>
+          <Text style={styles.name}>{product.name}</Text>
+          <Text style={styles.price}>{product.price} <Text style={styles.currency}>EGP</Text></Text>
+          
+          <View style={styles.divider} />
+          
+          <Text style={styles.sectionTitle}>Description</Text>
+          <Text style={styles.desc}>{product.description}</Text>
 
-        <TouchableOpacity 
-          style={styles.button} 
-          onPress={() => Alert.alert("تم", "أضيف للسلة")}
+          <View style={styles.infoRow}>
+            <View style={styles.infoTag}>
+              <Text style={styles.infoText}>Type: {product.type || "Used"}</Text>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* زر الـ Action الثابت تحت */}
+      <View style={styles.footer}>
+        <Pressable 
+          style={[styles.buyButton, loading && { opacity: 0.7 }]} 
+          onPress={handleBuyNow}
+          disabled={loading}
         >
-          <Text style={styles.buttonText}>Add to Cart</Text>
-        </TouchableOpacity>
+          <Text style={styles.buyButtonText}>
+            {loading ? "Processing..." : "Confirm Request"}
+          </Text>
+        </Pressable>
       </View>
-    </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { paddingBottom: 30, backgroundColor: '#fff' },
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  image: { width: "100%", height: 350 },
-  infoContainer: { padding: 20, borderTopLeftRadius: 30, borderTopRightRadius: 30, marginTop: -30, backgroundColor: '#fff' },
-  name: { fontSize: 26, fontWeight: "bold", color: '#1e293b' },
-  price: { fontSize: 22, color: "#10b981", fontWeight: "800", marginVertical: 10 },
-  tagContainer: { flexDirection: 'row', gap: 10, marginBottom: 20 },
-  tag: { backgroundColor: '#f1f5f9', padding: 8, borderRadius: 8, fontSize: 12, color: '#64748b' },
-  descriptionBox: { marginBottom: 25 },
-  descriptionTitle: { fontSize: 18, fontWeight: '700', color: '#334155', marginBottom: 5 },
-  description: { fontSize: 16, color: '#475569', lineHeight: 24 },
-  button: { backgroundColor: "#2563eb", padding: 15, borderRadius: 15, alignItems: 'center' },
-  buttonText: { color: "white", fontSize: 18, fontWeight: "bold" },
+  safeArea: { flex: 1, backgroundColor: "#fff" },
+  container: { paddingBottom: 100 },
+  backBtn: {
+    padding: 15,
+    zIndex: 10,
+  },
+  imageCard: {
+    width: '90%',
+    height: 300,
+    backgroundColor: '#f8fafc',
+    alignSelf: 'center',
+    borderRadius: 20,
+    overflow: 'hidden',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+  },
+  image: { width: '100%', height: '100%', resizeMode: "contain" },
+  detailsContainer: { padding: 25 },
+  category: { 
+    color: '#3b82f6', 
+    fontWeight: 'bold', 
+    textTransform: 'uppercase', 
+    fontSize: 12,
+    marginBottom: 5
+  },
+  name: { fontSize: 28, fontWeight: "800", color: "#1e293b" },
+  price: { fontSize: 24, color: "#10b981", fontWeight: '900', marginTop: 10 },
+  currency: { fontSize: 14, color: '#64748b' },
+  divider: { height: 1, backgroundColor: '#f1f5f9', marginVertical: 20 },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#1e293b', marginBottom: 10 },
+  desc: { fontSize: 15, color: "#64748b", lineHeight: 22 },
+  infoRow: { flexDirection: 'row', marginTop: 20 },
+  infoTag: { backgroundColor: '#f1f5f9', padding: 8, borderRadius: 8 },
+  infoText: { color: '#475569', fontSize: 12, fontWeight: '600' },
+  footer: {
+    position: 'absolute',
+    bottom: 0,
+    width: '100%',
+    padding: 20,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9'
+  },
+  buyButton: {
+    backgroundColor: '#10b981',
+    paddingVertical: 16,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  buyButtonText: { color: "#fff", fontSize: 18, fontWeight: "bold" },
 });
-
-
