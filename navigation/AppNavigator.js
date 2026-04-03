@@ -10,6 +10,7 @@ import LoginScreen from '../screens/LoginScreen';
 import MyProductsScreen from '../screens/MyInventoryScreen';
 import AddOrderScreen from '../screens/PostItemScreen';
 import RegisterScreen from '../screens/RegisterScreen';
+import ProductDetailsScreen from '../screens/ProductDetailsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -36,8 +37,12 @@ export default function AppNavigator() {
   }, []);
 
   if (isLoading) {
-    return null;
-  }
+  return (
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+      <ActivityIndicator size="large" />
+    </View>
+  );
+}
 
   return (
     <Stack.Navigator>
@@ -63,6 +68,11 @@ export default function AppNavigator() {
             component={AllRequestsScreen} 
             options={{ headerShown: false }}
           />
+           <Stack.Screen
+            name="ProductDetails"
+            component={ProductDetailsScreen}
+            options={{ headerShown: false }}
+          /> 
         </Stack.Group>
       ) : (
         <Stack.Group>
