@@ -43,6 +43,9 @@ export default function AppNavigator() {
     </View>
   );
 }
+ if (isLoading) {
+  return null;
+}
 
   return (
     <Stack.Navigator>
