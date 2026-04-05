@@ -13,6 +13,7 @@ import AddOrderScreen from '../screens/PostItemScreen';
 import ProductDetailsScreen from '../screens/ProductDetailsScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import CartScreen from '../screens/CartScreen';
+import SellerOrdersScreen from '../screens/SellerOrdersScreen';
 const Stack = createNativeStackNavigator();
 export default function AppNavigator() {
   const [user, setUser] = useState(null);
@@ -64,7 +65,11 @@ export default function AppNavigator() {
             component={AllRequestsScreen} 
             options={{ headerShown: false }}
           />
-          
+          <Stack.Screen 
+        name="SellerOrders" 
+        component={SellerOrdersScreen} 
+        options={{ headerShown: false }}
+      />
           <Stack.Screen
   name="MyRequests"
   component={MyRequestsScreen}

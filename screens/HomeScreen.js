@@ -310,8 +310,11 @@ useFocusEffect(
             <Pressable style={styles.menuItem} onPress={() => handleProtectedNavigation("MyProducts")}>
               <Text style={styles.menuItemText}>📦 My Inventory</Text>
             </Pressable>
+            <Pressable style={styles.menuItem} onPress={() => handleProtectedNavigation("SellerOrders")}>
+    <Text style={styles.menuItemText}>💰 Incoming Orders (Sales)</Text>
+  </Pressable>
             <Pressable style={styles.menuItem} onPress={() => handleProtectedNavigation("MyRequests")}>
-              <Text style={styles.menuItemText}>📄 My Requests</Text>
+              <Text style={styles.menuItemText}>📄 My Orders</Text>
             </Pressable>
             {userRole === 'admin' && (
               <Pressable style={styles.menuItem} onPress={() => handleProtectedNavigation("AllRequests")}>
