@@ -95,7 +95,7 @@ const PostItemScreen = ({ navigation }) => {
         status: "pending",
         mode,
         price: Number(price),
-        userId: currentUser.uid,
+        sellerId: currentUser.uid,
         photoURL,
         createdAt: serverTimestamp(),
       };
@@ -106,7 +106,7 @@ const PostItemScreen = ({ navigation }) => {
       // Reset Form
       setName(""); setDescription(""); setCategory(""); setType("");
       setMode(""); setPrice(""); setPhoto(null);
-    } catch (e) {
+    } catch  {
       Alert.alert("Error", "Something went wrong.");
     } finally {
       setLoading(false);

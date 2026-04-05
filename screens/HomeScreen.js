@@ -4,7 +4,7 @@ import {
   Alert, FlatList, Image, ActivityIndicator, Dimensions, ScrollView,
   Animated, PanResponder 
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation ,useFocusEffect} from "@react-navigation/native";
 import { auth, db } from "../services/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
@@ -120,7 +120,24 @@ export default function HomeScreen() {
     };
     saveCart();
   }, [cart, user, loading]);
+useFocusEffect(
+  useCallback(() => {
+    const refreshCart = async () => {
+      try {
+        const user = auth.currentUser;
+        const cartKey = user ? `userCart_${user.uid}` : 'guestCart';
+        const savedCart = await AsyncStorage.getItem(cartKey);
+        if (savedCart) {
+          setCart(JSON.parse(savedCart));
+        }
+      } catch (e) {
+        console.error("Error refreshing cart on focus:", e);
+      }
+    };
 
+    refreshCart();
+  }, [])
+);
   const toggleCart = (product) => {
     const isExist = cart.find(item => item.id === product.id);
     if (isExist) {

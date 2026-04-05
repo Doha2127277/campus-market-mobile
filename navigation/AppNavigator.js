@@ -63,11 +63,7 @@ export default function AppNavigator() {
             component={AllRequestsScreen} 
             options={{ headerShown: false }}
           />
-          <Stack.Screen
-            name="ProductDetails"
-            component={ProductDetailsScreen}
-            options={{ headerShown: false }}
-          />
+          
           <Stack.Screen
   name="MyRequests"
   component={MyRequestsScreen}
@@ -98,6 +94,11 @@ export default function AppNavigator() {
           />
         </Stack.Group>
       )}
+      <Stack.Screen
+            name="ProductDetails"
+            component={ProductDetailsScreen}
+            options={{ headerShown: false }}
+          />
     </Stack.Navigator>
   );
 }
