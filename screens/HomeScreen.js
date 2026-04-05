@@ -17,7 +17,7 @@ const MENU_WIDTH = 280;
 const isWeb = Platform.OS === "web";
 
 
-const ProductCard = memo(({ item, onPress }) => {
+const ProductCard = memo(({ item, onPress, onToggleCart, isInCart }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
@@ -30,12 +30,11 @@ const ProductCard = memo(({ item, onPress }) => {
 
   return (
     <Pressable 
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
+      onPressIn={handlePressIn} 
+      onPressOut={handlePressOut} 
       onPress={() => onPress(item)}
     >
       <Animated.View style={[styles.productCard, { transform: [{ scale: scaleAnim }] }]}>
-        {/* الصورة والـ Badge */}
         <View style={styles.imageContainer}>
           <Image 
             source={{ uri: item.photoURL || "https://via.placeholder.com/300" }} 
@@ -51,26 +50,32 @@ const ProductCard = memo(({ item, onPress }) => {
         <View style={styles.productInfo}>
           <Text style={styles.productCategoryText}>{item.category}</Text>
           <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
-          
           <View style={styles.priceRow}>
-            <View>
-              <Text style={styles.productPrice}>{item.price} <Text style={styles.currencyText}>EGP</Text></Text>
-            </View>
+            <Text style={styles.productPrice}>{item.price} <Text style={styles.currencyText}>EGP</Text></Text>
           </View>
-
           
-          <Pressable 
-            style={styles.detailsButton} 
-            onPress={() => onPress(item)}
-          >
-            <Text style={styles.detailsButtonText}>View Details</Text>
-          </Pressable>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 5 }}>
+            <Pressable 
+              style={[
+                styles.cartSmallBtn, 
+                isInCart && { backgroundColor: '#0dc425' }
+              ]} 
+              onPress={() => onToggleCart(item)}
+            >
+              <Text style={{ fontSize: 16 }}>🛒</Text> 
+            </Pressable>
+            <Pressable style={styles.detailsButton} onPress={() => onPress(item)}>
+              <Text style={styles.detailsButtonText}>Details</Text>
+            </Pressable>
+          </View>
         </View>
       </Animated.View>
     </Pressable>
   );
 });
+
 ProductCard.displayName = "ProductCard";
+
 export default function HomeScreen() {
   const navigation = useNavigation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -82,9 +87,19 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
+  const [cart, setCart] = useState([]); 
 
   const categories = ["All", "Engineering", "Medicine", "Business"];
   const slideAnim = useRef(new Animated.Value(MENU_WIDTH)).current; 
+
+  const toggleCart = (product) => {
+    const isExist = cart.find(item => item.id === product.id);
+    if (isExist) {
+      setCart(cart.filter(item => item.id !== product.id)); 
+    } else {
+      setCart([...cart, product]);
+    }
+  };
 
   const openMenu = () => {
     setMenuOpen(true);
@@ -187,7 +202,6 @@ export default function HomeScreen() {
   };
 
   return (
-    
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
@@ -196,6 +210,17 @@ export default function HomeScreen() {
           <Text style={styles.brandLogo}>CAMPUS<Text style={{ color: '#3b82f6' }}>.</Text></Text>
           <View style={styles.headerActions}>
             {user && <Text style={styles.welcomeUser} numberOfLines={1}>Hi, {userName}</Text>}
+            
+            <Pressable 
+              style={[styles.iconCircle, { marginRight: 10 }]} 
+              onPress={() => navigation.navigate("CartScreen", { cart, setCart })}
+            >
+              <Text style={{ fontSize: 20 }}>🛒</Text>
+              {cart.length > 0 && (
+                <View style={styles.cartBadge}><Text style={styles.cartBadgeText}>{cart.length}</Text></View>
+              )}
+            </Pressable>
+
             <Pressable style={styles.iconCircle} onPress={openMenu}>
               <Text style={{ fontSize: 20 }}>☰</Text>
             </Pressable>
@@ -222,11 +247,13 @@ export default function HomeScreen() {
             <ProductCard 
               item={item} 
               onPress={(prod) => navigation.navigate("ProductDetails", { product: prod })} 
+              onToggleCart={toggleCart}
+              isInCart={cart.some(cartItem => cartItem.id === item.id)}
             />
           )}
           numColumns={2}
           columnWrapperStyle={{ justifyContent: 'space-between', paddingHorizontal: 5 }}
-          
+         
           contentContainerStyle={{ paddingBottom: 100, flexGrow: 1 }} 
           ListHeaderComponent={
             <>
@@ -268,8 +295,8 @@ export default function HomeScreen() {
               <Text style={styles.menuItemText}>📦 My Inventory</Text>
             </Pressable>
             <Pressable style={styles.menuItem} onPress={() => handleProtectedNavigation("MyRequests")}>
-  <Text style={styles.menuItemText}>📄 My Requests</Text>
-</Pressable>
+              <Text style={styles.menuItemText}>📄 My Requests</Text>
+            </Pressable>
             {userRole === 'admin' && (
               <Pressable style={styles.menuItem} onPress={() => handleProtectedNavigation("AllRequests")}>
                 <Text style={styles.menuItemText}>🛡️ Admin Panel</Text>
@@ -294,274 +321,51 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { 
-    flex: 1, 
-    backgroundColor: "#f8fafc" 
-  },
-  headerSection: { 
-    paddingHorizontal: 20, 
-    paddingTop: 10, 
-    paddingBottom: 15 
-  },
-  topRow: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    marginBottom: 15 
-  },
-  brandLogo: { 
-    fontSize: 24, 
-    fontWeight: '900', 
-    color: '#1e293b' 
-  },
-  headerActions: { 
-    flexDirection: 'row', 
-    alignItems: 'center' 
-  },
-  welcomeUser: { 
-    fontSize: 13, 
-    color: '#64748b', 
-    marginRight: 10, 
-    maxWidth: 80 
-  },
-  iconCircle: { 
-    width: 40, 
-    height: 40, 
-    backgroundColor: '#f1f5f9', 
-    borderRadius: 20, 
-    justifyContent: 'center', 
-    alignItems: 'center' 
-  },
-  searchContainer: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    backgroundColor: '#f1f5f9', 
-    borderRadius: 25, 
-    paddingHorizontal: 15, 
-    height: 45 
-  },
-  mainSearchInput: { 
-    flex: 1, 
-    fontSize: 14 
-  },
-  heroCard: { 
-    backgroundColor: '#1e293b', 
-    padding: 20, 
-    borderRadius: 20, 
-    marginHorizontal: 15, 
-    marginTop: 10, 
-    flexDirection: 'row', 
-    alignItems: 'center' 
-  },
-  heroTitle: { 
-    color: '#fff', 
-    fontSize: 20, 
-    fontWeight: '800' 
-  },
-  heroSub: { 
-    color: '#94a3b8', 
-    fontSize: 12, 
-    marginTop: 5 
-  },
-  catScroll: { 
-    paddingLeft: 15, 
-    marginVertical: 15 
-  },
-  catChip: { 
-    paddingHorizontal: 18, 
-    paddingVertical: 8, 
-    borderRadius: 20, 
-    backgroundColor: '#f1f5f9', 
-    marginRight: 10 
-  },
-  catChipActive: { 
-    backgroundColor: '#3b82f6' 
-  },
-  catText: { 
-    fontSize: 13, 
-    color: '#64748b', 
-    fontWeight: '600' 
-  },
-  catTextActive: { 
-    color: '#fff' 
-  },
-  sectionTitle: { 
-    fontSize: 18, 
-    fontWeight: '700', 
-    marginLeft: 20, 
-    marginBottom: 10 
-  },
-  productCard: { 
-    width: CARD_WIDTH, 
-    backgroundColor: '#ffffff', 
-    marginLeft: 15, 
-    marginBottom: 20, 
-    borderRadius: 20, 
-    elevation: 4, 
-    shadowColor: '#000', 
-    shadowOpacity: 0.08, 
-    shadowRadius: 10,
-    borderWidth: 1,
-    borderColor: '#f8fafc',
-    shadowOffset: { width: 0, height: 2 },
-    overflow: 'hidden'
-  },
-  imageContainer: {
-    width: '100%',
-    height: 130,
-    backgroundColor: '#f8fafc',
-  },
-  productImage: { 
-    width: '100%', 
-    height: '100%',
-  },
-  productInfo: { 
-    padding: 12,
-  },
-  productCategoryText: { 
-    fontSize: 10, 
-    color: '#94a3b8', 
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    marginBottom: 4
-  },
-  productName: { 
-    fontSize: 14, 
-    fontWeight: '700', 
-    color: '#1e293b',
-    marginBottom: 6
-  },
-  priceRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: 10
-  },
-  productPrice: { 
-    fontSize: 17, 
-    fontWeight: '900', 
-    color: '#2563eb' 
-  },
-  currencyText: {
-    fontSize: 10,
-    color: '#64748b',
-    fontWeight: '600'
-  },
-  detailsButton: {
-    backgroundColor: '#3b82f6',
-    paddingVertical: 10,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 5,
-    shadowColor: '#3b82f6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 3,
-  },
-  detailsButtonText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#fff',
-    textTransform: 'uppercase',
-  },
-  badgeContainer: { 
-    position: 'absolute', 
-    top: 8, 
-    left: 8 
-  },
-  modeBadge: { 
-    paddingHorizontal: 10, 
-    paddingVertical: 5, 
-    borderRadius: 8 
-  },
-  modeText: { 
-    color: '#fff', 
-    fontSize: 10, 
-    fontWeight: 'bold' 
-  },
-  center: { 
-    flex: 1, 
-    justifyContent: 'center', 
-    alignItems: 'center' 
-  },
-  emptyText: { 
-    textAlign: 'center', 
-    marginTop: 40, 
-    color: '#94a3b8' 
-  },
-  menuOverlay: { 
-    position: 'absolute', 
-    top: 0, 
-    left: 0, 
-    right: 0, 
-    bottom: 0, 
-    zIndex: 1000, 
-    flexDirection: 'row' 
-  },
-  closeArea: { 
-    flex: 1, 
-    backgroundColor: 'rgba(0,0,0,0.5)' 
-  },
-  menuContent: { 
-    width: MENU_WIDTH, 
-    backgroundColor: '#0f172a', 
-    padding: 20, 
-    paddingTop: 60, 
-    position: 'absolute', 
-    right: 0, 
-    top: 0, 
-    bottom: 0, 
-    shadowColor: "#000", 
-    shadowOffset: { width: -10, height: 0 }, 
-    shadowOpacity: 0.3, 
-    shadowRadius: 15, 
-    elevation: 10 
-  },
-  menuHeader: { 
-    fontSize: 24, 
-    fontWeight: '900', 
-    color: '#fff', 
-    marginBottom: 5 
-  },
-  menuUserRole: { 
-    backgroundColor: '#1e293b', 
-    paddingHorizontal: 12, 
-    paddingVertical: 6, 
-    borderRadius: 4, 
-    alignSelf: 'flex-start', 
-    marginBottom: 30, 
-    borderWidth: 1, 
-    borderColor: '#334155' 
-  },
-  menuRoleText: { 
-    color: '#38bdf8', 
-    fontSize: 10, 
-    fontWeight: 'bold' 
-  },
-  menuItem: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    paddingVertical: 15, 
-    paddingHorizontal: 10, 
-    marginBottom: 5, 
-    borderBottomWidth: 0.5, 
-    borderBottomColor: '#334155' 
-  },
-  menuItemText: { 
-    fontSize: 16, 
-    color: '#f1f5f9', 
-    fontWeight: '500' 
-  },
-  logoutMenuItem: { 
-    backgroundColor: 'rgba(239, 68, 68, 0.1)', 
-    padding: 15, 
-    borderRadius: 4, 
-    marginTop: 20 
-  },
-  logoutMenuText: { 
-    color: '#f87171', 
-    fontWeight: 'bold', 
-    textAlign: 'center' 
-  }
+  safeArea: { flex: 1, backgroundColor: "#f8fafc" },
+  headerSection: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 15 },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
+  brandLogo: { fontSize: 24, fontWeight: '900', color: '#1e293b' },
+  headerActions: { flexDirection: 'row', alignItems: 'center' },
+  welcomeUser: { fontSize: 12, color: '#64748b', marginRight: 8, maxWidth: 70 },
+  iconCircle: { width: 40, height: 40, backgroundColor: '#f1f5f9', borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f1f5f9', borderRadius: 25, paddingHorizontal: 15, height: 45 },
+  mainSearchInput: { flex: 1, fontSize: 14 },
+  heroCard: { backgroundColor: '#1e293b', padding: 20, borderRadius: 20, marginHorizontal: 15, marginTop: 10, flexDirection: 'row', alignItems: 'center' },
+  heroTitle: { color: '#fff', fontSize: 20, fontWeight: '800' },
+  heroSub: { color: '#94a3b8', fontSize: 12, marginTop: 5 },
+  catScroll: { paddingLeft: 15, marginVertical: 15 },
+  catChip: { paddingHorizontal: 18, paddingVertical: 8, borderRadius: 20, backgroundColor: '#f1f5f9', marginRight: 10 },
+  catChipActive: { backgroundColor: '#3b82f6' },
+  catText: { fontSize: 13, color: '#64748b', fontWeight: '600' },
+  catTextActive: { color: '#fff' },
+  sectionTitle: { fontSize: 18, fontWeight: '700', marginLeft: 20, marginBottom: 10 },
+  productCard: { width: CARD_WIDTH, backgroundColor: '#ffffff', marginLeft: 15, marginBottom: 20, borderRadius: 20, elevation: 4, overflow: 'hidden', borderWidth: 1, borderColor: '#f1f5f9' },
+  imageContainer: { width: '100%', height: 130, backgroundColor: '#f8fafc' },
+  productImage: { width: '100%', height: '100%' },
+  productInfo: { padding: 12 },
+  productCategoryText: { fontSize: 10, color: '#94a3b8', fontWeight: '700', textTransform: 'uppercase', marginBottom: 4 },
+  productName: { fontSize: 14, fontWeight: '700', color: '#1e293b', marginBottom: 6 },
+  priceRow: { marginBottom: 10 },
+  productPrice: { fontSize: 17, fontWeight: '900', color: '#2563eb' },
+  currencyText: { fontSize: 10, color: '#64748b' },
+  detailsButton: { flex: 1, backgroundColor: '#3b82f6', paddingVertical: 10, borderRadius: 12, alignItems: 'center' },
+  detailsButtonText: { fontSize: 12, fontWeight: '800', color: '#fff' },
+  cartSmallBtn: { backgroundColor: '#f1f5f9', width: 45, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 5 },
+  cartBadge: { position: 'absolute', top: -5, right: -5, backgroundColor: '#ef4444', borderRadius: 9, width: 18, height: 18, justifyContent: 'center', alignItems: 'center' },
+  cartBadgeText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
+  badgeContainer: { position: 'absolute', top: 8, left: 8 },
+  modeBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  modeText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyText: { textAlign: 'center', marginTop: 40, color: '#94a3b8' },
+  menuOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000, flexDirection: 'row' },
+  closeArea: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
+  menuContent: { width: MENU_WIDTH, backgroundColor: '#0f172a', padding: 20, paddingTop: 60, position: 'absolute', right: 0, top: 0, bottom: 0 },
+  menuHeader: { fontSize: 24, fontWeight: '900', color: '#fff', marginBottom: 5 },
+  menuUserRole: { backgroundColor: '#1e293b', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 4, alignSelf: 'flex-start', marginBottom: 30 },
+  menuRoleText: { color: '#38bdf8', fontSize: 10, fontWeight: 'bold' },
+  menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 0.5, borderBottomColor: '#334155' },
+  menuItemText: { fontSize: 16, color: '#f1f5f9', fontWeight: '500' },
+  logoutMenuItem: { backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: 15, borderRadius: 4, marginTop: 20 },
+  logoutMenuText: { color: '#f87171', fontWeight: 'bold', textAlign: 'center' }
 });
