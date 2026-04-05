@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { 
   View, Text, Image, StyleSheet, Pressable, 
-  ScrollView, ActivityIndicator, StatusBar, Platform 
+  ScrollView, StatusBar 
 } from "react-native";
 import { auth, db } from "../services/firebase"; 
 import { doc, getDoc } from "firebase/firestore";
@@ -49,7 +49,7 @@ export default function ProductDetailsScreen({ route, navigation }) {
 
     fetchSellerInfo();
     loadCartStatus();
-  }, [product.id, product.userId]);
+  }, [product.id, product.userId, product.sellerId]);
 
   const handleToggleCart = async () => {
     try {
@@ -77,7 +77,7 @@ export default function ProductDetailsScreen({ route, navigation }) {
     <View style={styles.mainContainer}>
       <StatusBar barStyle="dark-content" />
       
-      {/* Header */}
+      
       <View style={styles.customHeader}>
         <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
           <MaterialCommunityIcons name="chevron-left" size={30} color="#1e293b" />
@@ -87,7 +87,7 @@ export default function ProductDetailsScreen({ route, navigation }) {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Image Section */}
+        
         <View style={styles.imageWrapper}>
           <Image source={{ uri: product.photoURL }} style={styles.mainImage} />
           <View style={[styles.modeBadge, { backgroundColor: product.mode === 'Volunteer' ? '#c01b1b' : '#47d40e' }]}>
@@ -95,7 +95,7 @@ export default function ProductDetailsScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* Content Section - الترتيب هنا أهدى */}
+        
         <View style={styles.contentSection}>
           <Text style={styles.productName}>{product.name}</Text>
           
@@ -120,7 +120,7 @@ export default function ProductDetailsScreen({ route, navigation }) {
         </View>
       </ScrollView>
 
-      {/* Footer */}
+      
       <View style={styles.footer}>
         <Pressable 
           style={[styles.cartBtn, localIsInCart && styles.cartBtnRemove]} 
