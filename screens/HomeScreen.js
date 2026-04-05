@@ -4,12 +4,13 @@ import {
   Alert, FlatList, Image, ActivityIndicator, Dimensions, ScrollView,
   Animated, PanResponder 
 } from "react-native";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import { auth, db } from "../services/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = (width - 40) / 2;
@@ -19,28 +20,14 @@ const isWeb = Platform.OS === "web";
 
 const ProductCard = memo(({ item, onPress, onToggleCart, isInCart }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
-
-  const handlePressIn = () => {
-    Animated.spring(scaleAnim, { toValue: 0.96, useNativeDriver: true }).start();
-  };
-
-  const handlePressOut = () => {
-    Animated.spring(scaleAnim, { toValue: 1, friction: 3, useNativeDriver: true }).start();
-  };
+  const handlePressIn = () => Animated.spring(scaleAnim, { toValue: 0.96, useNativeDriver: true }).start();
+  const handlePressOut = () => Animated.spring(scaleAnim, { toValue: 1, friction: 3, useNativeDriver: true }).start();
 
   return (
-    <Pressable 
-      onPressIn={handlePressIn} 
-      onPressOut={handlePressOut} 
-      onPress={() => onPress(item)}
-    >
+    <Pressable onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={() => onPress(item)}>
       <Animated.View style={[styles.productCard, { transform: [{ scale: scaleAnim }] }]}>
         <View style={styles.imageContainer}>
-          <Image 
-            source={{ uri: item.photoURL || "https://via.placeholder.com/300" }} 
-            style={styles.productImage} 
-            resizeMode="cover"
-          />
+          <Image source={{ uri: item.photoURL || "https://via.placeholder.com/300" }} style={styles.productImage} resizeMode="cover" />
           <View style={styles.badgeContainer}>
             <View style={[styles.modeBadge, { backgroundColor: item.mode === 'For Sale' ? '#47d40e' : '#c01b1b' }]}>
               <Text style={styles.modeText}>{item.mode === 'For Sale' ? '💰 Sale' : '🤝 FREE'}</Text>
@@ -53,16 +40,9 @@ const ProductCard = memo(({ item, onPress, onToggleCart, isInCart }) => {
           <View style={styles.priceRow}>
             <Text style={styles.productPrice}>{item.price} <Text style={styles.currencyText}>EGP</Text></Text>
           </View>
-          
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 5 }}>
-            <Pressable 
-              style={[
-                styles.cartSmallBtn, 
-                isInCart && { backgroundColor: '#0dc425' }
-              ]} 
-              onPress={() => onToggleCart(item)}
-            >
-              <Text style={{ fontSize: 16 }}>🛒</Text> 
+            <Pressable style={[styles.cartSmallBtn, isInCart && styles.cartActiveFill]} onPress={() => onToggleCart(item)}>
+              <MaterialCommunityIcons name={isInCart ? "cart-check" : "cart-plus"} size={20} color={isInCart ? "#fff" : "#10b981"} />
             </Pressable>
             <Pressable style={styles.detailsButton} onPress={() => onPress(item)}>
               <Text style={styles.detailsButtonText}>Details</Text>
@@ -79,7 +59,7 @@ ProductCard.displayName = "ProductCard";
 export default function HomeScreen() {
   const navigation = useNavigation();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [user, setUser] = useState(auth.currentUser);
+  const [user, setUser] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [userName, setUserName] = useState("");
   const [products, setProducts] = useState([]);
@@ -91,6 +71,55 @@ export default function HomeScreen() {
 
   const categories = ["All", "Engineering", "Medicine", "Business"];
   const slideAnim = useRef(new Animated.Value(MENU_WIDTH)).current; 
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (authenticatedUser) => {
+      if (authenticatedUser) {
+        const [role, name, userCartData, guestCartData] = await Promise.all([
+          AsyncStorage.getItem('userRole'),
+          AsyncStorage.getItem('userName'),
+          AsyncStorage.getItem(`userCart_${authenticatedUser.uid}`),
+          AsyncStorage.getItem('guestCart')
+        ]);
+
+        let finalCart = userCartData ? JSON.parse(userCartData) : [];
+
+        if (guestCartData) {
+          const guestItems = JSON.parse(guestCartData);
+          guestItems.forEach(item => {
+            if (!finalCart.find(i => i.id === item.id)) finalCart.push(item);
+          });
+          await AsyncStorage.removeItem('guestCart');
+          await AsyncStorage.setItem(`userCart_${authenticatedUser.uid}`, JSON.stringify(finalCart));
+        }
+
+        setUser(authenticatedUser);
+        setCart(finalCart);
+        setUserRole(role);
+        setUserName(name || authenticatedUser.email?.split('@')[0]);
+      } else {
+        const guestCartData = await AsyncStorage.getItem('guestCart');
+        setUser(null);
+        setUserRole(null);
+        setUserName("");
+        setCart(guestCartData ? JSON.parse(guestCartData) : []);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const saveCart = async () => {
+      try {
+        if (user) {
+          await AsyncStorage.setItem(`userCart_${user.uid}`, JSON.stringify(cart));
+        } else if (!user && !loading) {
+          await AsyncStorage.setItem('guestCart', JSON.stringify(cart));
+        }
+      } catch (e) { console.error(e); }
+    };
+    saveCart();
+  }, [cart, user, loading]);
 
   const toggleCart = (product) => {
     const isExist = cart.find(item => item.id === product.id);
@@ -125,38 +154,6 @@ export default function HomeScreen() {
   ).current;
 
   useEffect(() => {
-    let isMounted = true;
-    const unsubscribe = onAuthStateChanged(auth, async (authenticatedUser) => {
-      if (authenticatedUser) {
-        const [role, name] = await Promise.all([
-          AsyncStorage.getItem('userRole'),
-          AsyncStorage.getItem('userName')
-        ]);
-        if (isMounted) {
-          setUser(authenticatedUser);
-          setUserRole(role);
-          setUserName(name || authenticatedUser.email?.split('@')[0]);
-        }
-      } else if (isMounted) {
-        setUser(null); setUserRole(null); setUserName("");
-      }
-    });
-    return () => { isMounted = false; unsubscribe(); };
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      const updateData = async () => {
-        const role = await AsyncStorage.getItem('userRole');
-        const name = await AsyncStorage.getItem('userName');
-        setUserRole(role);
-        setUserName(name || (auth.currentUser ? auth.currentUser.email?.split('@')[0] : ""));
-      };
-      updateData();
-    }, [])
-  );
-
-  useEffect(() => {
     const q = query(collection(db, "products"), where("status", "==", "approved"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const prods = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -189,7 +186,9 @@ export default function HomeScreen() {
     try {
       closeMenu();
       await signOut(auth);
-      await AsyncStorage.multiRemove(['userRole', 'userName']);
+      await AsyncStorage.multiRemove(['userRole', 'userName']); 
+      setCart([]);
+      Alert.alert("Logged Out", "Come back soon!");
     } catch (e) { console.log(e); }
   };
 
@@ -215,19 +214,19 @@ export default function HomeScreen() {
               style={[styles.iconCircle, { marginRight: 10 }]} 
               onPress={() => navigation.navigate("CartScreen", { cart, setCart })}
             >
-              <Text style={{ fontSize: 20 }}>🛒</Text>
+              <MaterialCommunityIcons name="cart-outline" size={22} color="#1e293b" />
               {cart.length > 0 && (
                 <View style={styles.cartBadge}><Text style={styles.cartBadgeText}>{cart.length}</Text></View>
               )}
             </Pressable>
 
             <Pressable style={styles.iconCircle} onPress={openMenu}>
-              <Text style={{ fontSize: 20 }}>☰</Text>
+              <MaterialCommunityIcons name="menu" size={24} color="#1e293b" />
             </Pressable>
           </View>
         </View>
         <View style={styles.searchContainer}>
-          <Text style={{ marginRight: 10 }}>🔍</Text>
+          <MaterialCommunityIcons name="magnify" size={20} color="#64748b" style={{ marginRight: 10 }} />
           <TextInput
             placeholder="Search books, tools..."
             style={styles.mainSearchInput}
@@ -253,7 +252,7 @@ export default function HomeScreen() {
           )}
           numColumns={2}
           columnWrapperStyle={{ justifyContent: 'space-between', paddingHorizontal: 5 }}
-         
+          
           contentContainerStyle={{ paddingBottom: 100, flexGrow: 1 }} 
           ListHeaderComponent={
             <>
@@ -350,7 +349,8 @@ const styles = StyleSheet.create({
   currencyText: { fontSize: 10, color: '#64748b' },
   detailsButton: { flex: 1, backgroundColor: '#3b82f6', paddingVertical: 10, borderRadius: 12, alignItems: 'center' },
   detailsButtonText: { fontSize: 12, fontWeight: '800', color: '#fff' },
-  cartSmallBtn: { backgroundColor: '#f1f5f9', width: 45, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 5 },
+  cartSmallBtn: { width: 45, height: 40, borderRadius: 12, borderWidth: 1.5, borderColor: '#10b981', backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center', marginRight: 5 },
+  cartActiveFill: { backgroundColor: '#10b981' },
   cartBadge: { position: 'absolute', top: -5, right: -5, backgroundColor: '#ef4444', borderRadius: 9, width: 18, height: 18, justifyContent: 'center', alignItems: 'center' },
   cartBadgeText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
   badgeContainer: { position: 'absolute', top: 8, left: 8 },
