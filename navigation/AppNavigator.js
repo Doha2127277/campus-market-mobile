@@ -12,6 +12,7 @@ import MyRequestsScreen from '../screens/MyRequestsScreen';
 import AddOrderScreen from '../screens/PostItemScreen';
 import ProductDetailsScreen from '../screens/ProductDetailsScreen';
 import RegisterScreen from '../screens/RegisterScreen';
+import CartScreen from '../screens/CartScreen';
 const Stack = createNativeStackNavigator();
 export default function AppNavigator() {
   const [user, setUser] = useState(null);
@@ -99,6 +100,11 @@ export default function AppNavigator() {
             component={ProductDetailsScreen}
             options={{ headerShown: false }}
           />
+          <Stack.Screen
+    name="CartScreen"
+    component={CartScreen}
+    options={{ headerShown: false }}
+  />
     </Stack.Navigator>
   );
 }
