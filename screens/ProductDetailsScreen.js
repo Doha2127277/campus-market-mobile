@@ -72,7 +72,12 @@ export default function ProductDetailsScreen({ route, navigation }) {
   const formattedDate = product.createdAt?.seconds 
     ? new Date(product.createdAt.seconds * 1000).toLocaleDateString() 
     : "Recently";
+const currentUser = auth.currentUser;
 
+const isOwnProduct =
+  currentUser &&
+  (product.userId === currentUser.uid ||
+   product.sellerId === currentUser.uid);
   return (
     <View style={styles.mainContainer}>
       <StatusBar barStyle="dark-content" />
@@ -122,16 +127,27 @@ export default function ProductDetailsScreen({ route, navigation }) {
 
       
       <View style={styles.footer}>
-        <Pressable 
-          style={[styles.cartBtn, localIsInCart && styles.cartBtnRemove]} 
-          onPress={handleToggleCart}
-          disabled={fetchingCart}
-        >
-           <Text style={styles.cartBtnText}>
-             {localIsInCart ? "Remove from Cart" : "Add to Cart"}
-           </Text>
-        </Pressable>
-      </View>
+  <Pressable
+    style={[
+      styles.cartBtn,
+      isOwnProduct
+        ? styles.ownProductBtn
+        : localIsInCart
+        ? styles.cartBtnRemove
+        : null
+    ]}
+    onPress={handleToggleCart}
+    disabled={fetchingCart || isOwnProduct}
+  >
+    <Text style={styles.cartBtnText}>
+      {isOwnProduct
+        ? "My Own Product"
+        : localIsInCart
+        ? "Remove from Cart"
+        : "Add to Cart"}
+    </Text>
+  </Pressable>
+</View>
     </View>
   );
 }
@@ -161,5 +177,8 @@ const styles = StyleSheet.create({
   footer: { position: 'absolute', bottom: 0, width: '100%', padding: 20, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#f1f5f9' },
   cartBtn: { backgroundColor: '#3b82f6', height: 55, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
   cartBtnRemove: { backgroundColor: '#ef4444' },
+  ownProductBtn: {
+  backgroundColor: '#94a3b8',
+},
   cartBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' }
 });

@@ -4,12 +4,12 @@ import {
   Alert, FlatList, Image, ActivityIndicator, Dimensions, ScrollView,
   Animated, Modal, PanResponder
 } from "react-native";
-import Fuse from "fuse.js";
+import Fuse from "fuse.js"; 
 import debounce from "lodash/debounce";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { auth, db } from "../services/firebase";
 import { onAuthStateChanged, signOut, updatePassword, updateProfile } from "firebase/auth";
-import { collection, query, where, onSnapshot, doc, updateDoc } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, updateDoc, getDoc } from "firebase/firestore";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -47,8 +47,7 @@ const uploadToCloudinary = async (uri) => {
     throw error;
   }
 };
-
-const ProductCard = memo(function ProductCard({ item, onPress, onToggleCart, isInCart }) {
+const ProductCard = memo(function ProductCard({ item, onPress, onToggleCart, isInCart, currentUserId }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () =>
@@ -57,6 +56,12 @@ const ProductCard = memo(function ProductCard({ item, onPress, onToggleCart, isI
   const handlePressOut = () =>
     Animated.spring(scaleAnim, { toValue: 1, friction: 3, useNativeDriver: true }).start();
 
+  const displayRating = item.sellerRating || item.rating || 0;
+  const displayReviews = item.totalReviews || 0;
+  const isSold = item.itemStatus === "sold";
+const isOwner =
+  currentUserId &&
+  (item.userId === currentUserId || item.sellerId === currentUserId);
   return (
     <Pressable onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={() => onPress(item)}>
       <Animated.View style={[styles.productCard, { transform: [{ scale: scaleAnim }] }]}>
@@ -71,27 +76,36 @@ const ProductCard = memo(function ProductCard({ item, onPress, onToggleCart, isI
         <View style={styles.productInfo}>
           <Text style={styles.productCategoryText}>{item.category}</Text>
           <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
+          
+          <View style={styles.ratingRow}>
+            <MaterialCommunityIcons name="star" size={14} color="#FFD700" />
+            <Text style={styles.ratingValue}>{displayRating.toFixed(1)}</Text>
+            <Text style={styles.ratingCount}>({displayReviews})</Text>
+          </View>
+
           <View style={styles.priceRow}>
             <Text style={styles.productPrice}>
               {item.price} <Text style={styles.currencyText}>EGP</Text>
             </Text>
           </View>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 5 }}>
-            <Pressable
-              style={[styles.cartSmallBtn, isInCart && styles.cartActiveFill]}
-              onPress={() => onToggleCart(item)}
-            >
-              <MaterialCommunityIcons
-                name={isInCart ? "cart-check" : "cart-plus"}
-                size={20}
-                color={isInCart ? "#fff" : "#10b981"}
-              />
-            </Pressable>
+          {!isOwner && (
+  <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 5 }}>
+    <Pressable
+      style={[styles.cartSmallBtn, isInCart && styles.cartActiveFill]}
+      onPress={() => onToggleCart(item)}
+    >
+      <MaterialCommunityIcons
+        name={isInCart ? "cart-check" : "cart-plus"}
+        size={20}
+        color={isInCart ? "#fff" : "#10b981"}
+      />
+    </Pressable>
 
-            <Pressable style={styles.detailsButton} onPress={() => onPress(item)}>
-              <Text style={styles.detailsButtonText}>Details</Text>
-            </Pressable>
-          </View>
+    <Pressable style={styles.detailsButton} onPress={() => onPress(item)}>
+      <Text style={styles.detailsButtonText}>Details</Text>
+    </Pressable>
+  </View>
+)}
         </View>
       </Animated.View>
     </Pressable>
@@ -117,7 +131,6 @@ export default function HomeScreen() {
 
   const [cart, setCart] = useState([]);
 
-  // Profile state
   const [profileModalVisible, setProfileModalVisible] = useState(false);
   const [newUserName, setNewUserName] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -131,7 +144,6 @@ export default function HomeScreen() {
   const categories = ["All", "Engineering", "Medicine", "Business"];
   const slideAnim = useRef(new Animated.Value(MENU_WIDTH)).current;
 
-  // --- Search History ---
   useEffect(() => {
     loadSearchHistory();
   }, []);
@@ -140,28 +152,16 @@ export default function HomeScreen() {
     try {
       const history = await AsyncStorage.getItem("searchHistory");
       if (history) setSearchHistory(JSON.parse(history));
-    } catch (e) {
-      console.log(e);
-    }
+    } catch (e) { console.log(e); }
   };
 
   const saveSearch = async (q) => {
     if (!q.trim()) return;
-
-    const updated = [
-      q,
-      ...searchHistory.filter(i => i.toLowerCase() !== q.toLowerCase())
-    ].slice(0, 10);
-
+    const updated = [q, ...searchHistory.filter(i => i.toLowerCase() !== q.toLowerCase())].slice(0, 10);
     setSearchHistory(updated);
-    try {
-      await AsyncStorage.setItem("searchHistory", JSON.stringify(updated));
-    } catch (e) {
-      console.log(e);
-    }
+    try { await AsyncStorage.setItem("searchHistory", JSON.stringify(updated)); } catch (e) { console.log(e); }
   };
 
-  // --- Auth ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (authenticatedUser) => {
       if (authenticatedUser) {
@@ -199,7 +199,6 @@ export default function HomeScreen() {
     return () => unsubscribe();
   }, []);
 
-  // --- Cart persistence ---
   useEffect(() => {
     const saveCart = async () => {
       try {
@@ -220,12 +219,8 @@ export default function HomeScreen() {
           const currentUser = auth.currentUser;
           const cartKey = currentUser ? `userCart_${currentUser.uid}` : 'guestCart';
           const savedCart = await AsyncStorage.getItem(cartKey);
-          if (savedCart) {
-            setCart(JSON.parse(savedCart));
-          }
-        } catch (e) {
-          console.error(e);
-        }
+          if (savedCart) setCart(JSON.parse(savedCart));
+        } catch (e) { console.error(e); }
       };
       refreshCart();
     }, [])
@@ -240,21 +235,52 @@ export default function HomeScreen() {
     }
   };
 
-  // --- Products ---
   useEffect(() => {
-    const q = query(collection(db, "products"), where("status", "==", "approved"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const prods = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter(p => p.status === "approved");
-      setProducts(prods);
-      setFilteredProducts(prods);
-      setLoading(false);
-    }, () => setLoading(false));
-    return () => unsubscribe();
+    let isMounted = true;
+    const productsQuery = query(collection(db, "products"), where("status", "==", "approved"));
+    
+    const unsubscribeProducts = onSnapshot(productsQuery, async (productsSnapshot) => {
+      if (!isMounted) return;
+      
+      let productsList = productsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      // التعديل هنا: فلترة المنتجات المبيعة تماماً من الشاشة الرئيسية
+      productsList = productsList.filter(p => p.itemStatus !== "sold");
+      
+      const sellerIds = [...new Set(productsList.map(p => p.sellerId).filter(id => id && id !== "unknown"))];
+      const ratingsMap = {};
+      
+      await Promise.all(sellerIds.map(async (sellerId) => {
+        const sellerRef = doc(db, "users", sellerId);
+        const sellerSnap = await getDoc(sellerRef);
+        if (sellerSnap.exists()) {
+          const sellerData = sellerSnap.data();
+          ratingsMap[sellerId] = {
+            rating: sellerData.rating || 0,
+            totalReviews: sellerData.totalReviews || 0
+          };
+        }
+      }));
+      
+      const finalProducts = productsList.map(product => ({
+        ...product,
+        sellerRating: ratingsMap[product.sellerId]?.rating || 0,
+        totalReviews: ratingsMap[product.sellerId]?.totalReviews || 0
+      }));
+      
+      if (isMounted) {
+        setProducts(finalProducts);
+        setFilteredProducts(finalProducts);
+        setLoading(false);
+      }
+    });
+    
+    return () => { isMounted = false; unsubscribeProducts(); };
   }, []);
 
-  // --- Fuzzy Search with Fuse.js ---
   const fuse = useMemo(() => {
     return new Fuse(products, {
       keys: ["name", "category", "description", "tags"],
@@ -265,24 +291,13 @@ export default function HomeScreen() {
 
   const applySearch = useCallback((text, category) => {
     let results = products;
-
-    if (text.trim()) {
-      results = fuse.search(text).map(r => r.item);
-    }
-
-    if (category !== "All") {
-      results = results.filter(p => p.category === category);
-    }
-
+    if (text.trim()) results = fuse.search(text).map(r => r.item);
+    if (category !== "All") results = results.filter(p => p.category === category);
     setFilteredProducts(results);
   }, [products, fuse]);
 
   const generateSuggestions = (text) => {
-    if (!text.trim()) {
-      setSuggestions(searchHistory);
-      return;
-    }
-
+    if (!text.trim()) { setSuggestions(searchHistory); return; }
     const results = fuse.search(text).slice(0, 5).map(r => r.item.name);
     const historyMatches = searchHistory.filter(i => i.toLowerCase().includes(text.toLowerCase()));
     setSuggestions([...new Set([...historyMatches, ...results])].slice(0, 6));
@@ -312,7 +327,6 @@ export default function HomeScreen() {
     applySearch(searchQuery, activeCategory);
   }, [activeCategory, applySearch, searchQuery]);
 
-  // --- Menu ---
   const openMenu = () => {
     setMenuOpen(true);
     Animated.spring(slideAnim, { toValue: 0, tension: 40, friction: 8, useNativeDriver: true }).start();
@@ -336,92 +350,38 @@ export default function HomeScreen() {
     })
   ).current;
 
-  // --- Profile ---
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert("Permission Required", "We need access to your gallery.");
-      return;
-    }
+    if (status !== 'granted') { Alert.alert("Permission Required", "Need gallery access."); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.7,
+      allowsEditing: true, aspect: [1, 1], quality: 0.7,
     });
-    if (!result.canceled) {
-      setTempImage(result.assets[0].uri);
-    }
+    if (!result.canceled) setTempImage(result.assets[0].uri);
   };
 
   const handleUpdateProfile = async () => {
-    if (newPassword && newPassword !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match");
-      return;
-    }
-
+    if (newPassword && newPassword !== confirmPassword) { Alert.alert("Error", "Passwords do not match"); return; }
     setUpdating(true);
     try {
       const userRef = doc(db, "users", user.uid);
       let updateData = { fullName: newUserName };
       let newPhotoURL = null;
-
-      if (tempImage) {
-        newPhotoURL = await uploadToCloudinary(tempImage);
-        updateData.photoURL = newPhotoURL;
-      }
-
+      if (tempImage) { newPhotoURL = await uploadToCloudinary(tempImage); updateData.photoURL = newPhotoURL; }
       await updateDoc(userRef, updateData);
-
       if (newPhotoURL || newUserName) {
-        await updateProfile(auth.currentUser, {
-          photoURL: newPhotoURL,
-          displayName: newUserName
-        });
+        await updateProfile(auth.currentUser, { photoURL: newPhotoURL, displayName: newUserName });
       }
-
-      if (newPassword) {
-        try {
-          await updatePassword(auth.currentUser, newPassword);
-        } catch (passwordError) {
-          if (passwordError.code === 'auth/requires-recent-login') {
-            Alert.alert("Re-authentication Required", "Please login again before updating password.");
-            setUpdating(false);
-            return;
-          }
-          throw passwordError;
-        }
-      }
-
-      Alert.alert(
-        "Update Successful",
-        "Your profile has been updated successfully! Please login again to see the changes.",
-        [
-          {
-            text: "OK",
-            onPress: async () => {
-              setProfileModalVisible(false);
-              await signOut(auth);
-              await AsyncStorage.multiRemove(['userRole', 'userName', 'userPhoto']);
-              navigation.navigate("Login");
-            }
-          }
-        ]
-      );
-    } catch (error) {
-      console.error("Update error:", error);
-      Alert.alert("Error", "Failed to update profile: " + (error.message || ""));
-    } finally {
-      setUpdating(false);
-    }
-  };
-
-  const cancelUpdate = () => {
-    setNewUserName(userName);
-    setTempImage(null);
-    setNewPassword("");
-    setConfirmPassword("");
-    setProfileModalVisible(false);
+      if (newPassword) await updatePassword(auth.currentUser, newPassword);
+      Alert.alert("Success", "Profile updated! Please login again.", [
+        { text: "OK", onPress: async () => {
+            setProfileModalVisible(false);
+            await signOut(auth);
+            await AsyncStorage.multiRemove(['userRole', 'userName']);
+            navigation.navigate("Login");
+        }}
+      ]);
+    } catch (error) { Alert.alert("Error", error.message); } finally { setUpdating(false); }
   };
 
   const performLogout = async () => {
@@ -430,15 +390,10 @@ export default function HomeScreen() {
       await signOut(auth);
       await AsyncStorage.multiRemove(['userRole', 'userName']);
       setCart([]);
-      Alert.alert("Logged Out", "Come back soon!");
     } catch (e) { console.log(e); }
   };
 
-  const handleLogout = async () => {
-    if (isWeb) {
-      if (window.confirm("Are you sure you want to logout?")) performLogout();
-      return;
-    }
+  const handleLogout = () => {
     Alert.alert("Logout", "Are you sure?", [{ text: "Cancel" }, { text: "Logout", onPress: performLogout }]);
   };
 
@@ -466,9 +421,7 @@ export default function HomeScreen() {
             )}
             <Pressable style={[styles.iconCircle, { marginRight: 10 }]} onPress={() => navigation.navigate("CartScreen", { cart, setCart })}>
               <MaterialCommunityIcons name="cart-outline" size={22} color="#1e293b" />
-              {cart.length > 0 && (
-                <View style={styles.cartBadge}><Text style={styles.cartBadgeText}>{cart.length}</Text></View>
-              )}
+              {cart.length > 0 && <View style={styles.cartBadge}><Text style={styles.cartBadgeText}>{cart.length}</Text></View>}
             </Pressable>
             <Pressable style={styles.iconCircle} onPress={openMenu}>
               <MaterialCommunityIcons name="menu" size={24} color="#1e293b" />
@@ -476,171 +429,104 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <View>
-          <View style={styles.searchContainer}>
-            <MaterialCommunityIcons name="magnify" size={20} color="#64748b" style={{ marginRight: 10 }} />
-            <TextInput
-              placeholder="Search books, tools..."
-              style={styles.mainSearchInput}
-              value={searchQuery}
-              onChangeText={handleSearch}
-            />
-          </View>
-          {suggestions.length > 0 && (
-            <View style={styles.suggestionsContainer}>
-              {suggestions.map((item, index) => (
-                <Pressable key={index} style={styles.suggestionItem} onPress={() => handleSuggestionPress(item)}>
-                  <MaterialCommunityIcons name="magnify" size={18} color="#64748b" />
-                  <Text style={styles.suggestionText}>{item}</Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
+        <View style={styles.searchContainer}>
+          <MaterialCommunityIcons name="magnify" size={20} color="#64748b" style={{ marginRight: 10 }} />
+          <TextInput placeholder="Search books, tools..." style={styles.mainSearchInput} value={searchQuery} onChangeText={handleSearch} />
         </View>
+        {suggestions.length > 0 && (
+          <View style={styles.suggestionsContainer}>
+            {suggestions.map((item, index) => (
+              <Pressable key={index} style={styles.suggestionItem} onPress={() => handleSuggestionPress(item)}>
+                <MaterialCommunityIcons name="magnify" size={18} color="#64748b" />
+                <Text style={styles.suggestionText}>{item}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
       </View>
 
-      {loading ? (
-        <View style={styles.center}><ActivityIndicator size="large" color="#3b82f6" /></View>
-      ) : (
-        <FlatList
-          data={filteredProducts}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <ProductCard
-              item={item}
-              onPress={(prod) => navigation.navigate("ProductDetails", { product: prod })}
-              onToggleCart={toggleCart}
-              isInCart={cart.some(cartItem => cartItem.id === item.id)}
-            />
-          )}
-          numColumns={2}
-          columnWrapperStyle={{ justifyContent: 'space-between', paddingHorizontal: 5 }}
-          contentContainerStyle={{ paddingBottom: 100, flexGrow: 1 }}
-          ListHeaderComponent={
-            <>
-              <View style={styles.heroCard}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.heroTitle}>Student Market</Text>
-                  <Text style={styles.heroSub}>Buy and sell with your peers safely.</Text>
-                </View>
-                <Text style={{ fontSize: 40 }}>🎓</Text>
+      <FlatList
+        data={filteredProducts}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <ProductCard
+  item={item}
+  onPress={(prod) => navigation.navigate("ProductDetails", { product: prod })}
+  onToggleCart={toggleCart}
+  isInCart={cart.some(cartItem => cartItem.id === item.id)}
+  currentUserId={user?.uid}
+/>
+        )}
+        numColumns={2}
+        columnWrapperStyle={{ justifyContent: 'space-between', paddingHorizontal: 5 }}
+        contentContainerStyle={{ paddingBottom: 100, flexGrow: 1 }}
+        ListHeaderComponent={
+          <>
+            <View style={styles.heroCard}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.heroTitle}>Student Market</Text>
+                <Text style={styles.heroSub}>Buy and sell with your peers safely.</Text>
               </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catScroll}>
-                {categories.map(cat => (
-                  <Pressable key={cat} onPress={() => setActiveCategory(cat)} style={[styles.catChip, activeCategory === cat && styles.catChipActive]}>
-                    <Text style={[styles.catText, activeCategory === cat && styles.catTextActive]}>{cat}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-              <Text style={styles.sectionTitle}>Latest Items</Text>
-            </>
-          }
-          ListEmptyComponent={<Text style={styles.emptyText}>No items found.</Text>}
-        />
-      )}
+              <Text style={{ fontSize: 40 }}>🎓</Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catScroll}>
+              {categories.map(cat => (
+                <Pressable key={cat} onPress={() => setActiveCategory(cat)} style={[styles.catChip, activeCategory === cat && styles.catChipActive]}>
+                  <Text style={[styles.catText, activeCategory === cat && styles.catTextActive]}>{cat}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <Text style={styles.sectionTitle}>Latest Items</Text>
+          </>
+        }
+        ListEmptyComponent={<Text style={styles.emptyText}>No items found.</Text>}
+      />
 
-      {/* Profile Modal */}
       <Modal visible={profileModalVisible} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.profileModalContent}>
             <View style={styles.profileModalHeader}>
               <Text style={styles.profileModalTitle}>Edit Profile</Text>
-              <Pressable onPress={cancelUpdate}>
-                <MaterialCommunityIcons name="close" size={24} color="#64748b" />
-              </Pressable>
+              <Pressable onPress={() => setProfileModalVisible(false)}><MaterialCommunityIcons name="close" size={24} color="#64748b" /></Pressable>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.profileScrollContent}>
+            <ScrollView showsVerticalScrollIndicator={false}>
               <Pressable style={styles.avatarPicker} onPress={pickImage}>
-                <Image
-                  source={{ uri: tempImage || selectedImage || "https://via.placeholder.com/150" }}
-                  style={styles.avatarLarge}
-                />
-                <View style={styles.avatarEditIcon}>
-                  <MaterialCommunityIcons name="camera" size={16} color="#fff" />
-                </View>
+                <Image source={{ uri: tempImage || selectedImage || "https://via.placeholder.com/150" }} style={styles.avatarLarge} />
+                <View style={styles.avatarEditIcon}><MaterialCommunityIcons name="camera" size={16} color="#fff" /></View>
               </Pressable>
-
               <Text style={styles.inputLabel}>Display Name</Text>
-              <TextInput
-                style={styles.profileInput}
-                value={newUserName}
-                onChangeText={setNewUserName}
-                placeholder="Enter your name"
-              />
-
+              <TextInput style={styles.profileInput} value={newUserName} onChangeText={setNewUserName} />
               <Text style={styles.inputLabel}>New Password</Text>
               <View style={styles.passwordRow}>
-                <TextInput
-                  style={styles.profileInputFlex}
-                  value={newPassword}
-                  onChangeText={setNewPassword}
-                  placeholder="Leave blank to keep current"
-                  secureTextEntry={!showPassword}
-                />
-                <Pressable onPress={() => setShowPassword(!showPassword)}>
-                  <MaterialCommunityIcons name={showPassword ? "eye-off" : "eye"} size={22} color="#64748b" />
-                </Pressable>
-              </View>
-
-              <Text style={styles.inputLabel}>Confirm Password</Text>
-              <View style={styles.passwordRow}>
-                <TextInput
-                  style={styles.profileInputFlex}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  placeholder="Confirm new password"
-                  secureTextEntry={!showConfirmPassword}
-                />
-                <Pressable onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
-                  <MaterialCommunityIcons name={showConfirmPassword ? "eye-off" : "eye"} size={22} color="#64748b" />
-                </Pressable>
+                <TextInput style={styles.profileInputFlex} value={newPassword} onChangeText={setNewPassword} secureTextEntry={!showPassword} />
+                <Pressable onPress={() => setShowPassword(!showPassword)}><MaterialCommunityIcons name={showPassword ? "eye-off" : "eye"} size={22} color="#64748b" /></Pressable>
               </View>
             </ScrollView>
             <View style={styles.profileModalActions}>
-              <Pressable style={styles.profileCancelBtn} onPress={cancelUpdate}>
-                <Text style={styles.profileCancelText}>Cancel</Text>
-              </Pressable>
               <Pressable style={styles.profileSaveBtn} onPress={handleUpdateProfile} disabled={updating}>
-                {updating ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.profileSaveText}>Save</Text>
-                )}
+                {updating ? <ActivityIndicator color="#fff" /> : <Text style={styles.profileSaveText}>Save Changes</Text>}
               </Pressable>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Side Menu */}
       {menuOpen && (
         <View style={styles.menuOverlay}>
           <Pressable style={styles.closeArea} onPress={closeMenu} />
           <Animated.View {...panResponder.panHandlers} style={[styles.menuContent, { transform: [{ translateX: slideAnim }] }]}>
             <Text style={styles.menuHeader}>CAMPUS.</Text>
             <View style={styles.menuUserRole}><Text style={styles.menuRoleText}>{userRole || 'Guest'}</Text></View>
-            <Pressable style={styles.menuItem} onPress={() => handleProtectedNavigation("AddOrder")}>
-              <Text style={styles.menuItemText}>➕ Post New Item</Text>
-            </Pressable>
-            <Pressable style={styles.menuItem} onPress={() => handleProtectedNavigation("MyProducts")}>
-              <Text style={styles.menuItemText}>📦 My Inventory</Text>
-            </Pressable>
-            <Pressable style={styles.menuItem} onPress={() => handleProtectedNavigation("SellerOrders")}>
-              <Text style={styles.menuItemText}>💰 Incoming Orders</Text>
-            </Pressable>
-            <Pressable style={styles.menuItem} onPress={() => handleProtectedNavigation("MyRequests")}>
-              <Text style={styles.menuItemText}>📄 My Orders</Text>
-            </Pressable>
+            <Pressable style={styles.menuItem} onPress={() => handleProtectedNavigation("AddOrder")}><Text style={styles.menuItemText}>➕ Post New Item</Text></Pressable>
+            <Pressable style={styles.menuItem} onPress={() => handleProtectedNavigation("MyProducts")}><Text style={styles.menuItemText}>📦 My Inventory</Text></Pressable>
+            <Pressable style={styles.menuItem} onPress={() => handleProtectedNavigation("SellerOrders")}><Text style={styles.menuItemText}>💰 Incoming Orders</Text></Pressable>
+            <Pressable style={styles.menuItem} onPress={() => handleProtectedNavigation("MyRequests")}><Text style={styles.menuItemText}>📄 My Orders</Text></Pressable>
             {userRole === 'admin' && (
-              <Pressable style={styles.menuItem} onPress={() => handleProtectedNavigation("AllRequests")}>
-                <Text style={styles.menuItemText}>🛡️ Admin Panel</Text>
-              </Pressable>
+              <Pressable style={styles.menuItem} onPress={() => handleProtectedNavigation("AllRequests")}><Text style={styles.menuItemText}>🛡️ Admin Panel</Text></Pressable>
             )}
             <View style={{ flex: 1 }} />
             {user ? (
-              <Pressable style={styles.logoutMenuItem} onPress={handleLogout}>
-                <Text style={styles.logoutMenuText}>Sign Out</Text>
-              </Pressable>
+              <Pressable style={styles.logoutMenuItem} onPress={handleLogout}><Text style={styles.logoutMenuText}>Sign Out</Text></Pressable>
             ) : (
               <Pressable style={[styles.logoutMenuItem, { backgroundColor: '#3b82f6' }]} onPress={() => { closeMenu(); navigation.navigate("Login") }}>
                 <Text style={[styles.logoutMenuText, { color: '#fff' }]}>Login</Text>
@@ -680,12 +566,15 @@ const styles = StyleSheet.create({
   productInfo: { padding: 12 },
   productCategoryText: { fontSize: 10, color: '#94a3b8', fontWeight: '700', textTransform: 'uppercase', marginBottom: 4 },
   productName: { fontSize: 14, fontWeight: '700', color: '#1e293b', marginBottom: 6 },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 4 },
+  ratingValue: { fontSize: 12, fontWeight: '800', color: '#1e293b' },
+  ratingCount: { fontSize: 10, color: '#94a3b8' },
   priceRow: { marginBottom: 10 },
   productPrice: { fontSize: 17, fontWeight: '900', color: '#2563eb' },
   currencyText: { fontSize: 10, color: '#64748b' },
   detailsButton: { flex: 1, backgroundColor: '#3b82f6', paddingVertical: 10, borderRadius: 12, alignItems: 'center' },
   detailsButtonText: { fontSize: 12, fontWeight: '800', color: '#fff' },
-  cartSmallBtn: { width: 45, height: 40, borderRadius: 12, borderWidth: 1.5, borderColor: '#10b981', backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center', marginRight: 5 },
+  cartSmallBtn: { width: 45, height: 40, borderRadius: 12, borderWidth: 1.5, borderColor: '#10b981', justifyContent: 'center', alignItems: 'center' },
   cartActiveFill: { backgroundColor: '#10b981' },
   cartBadge: { position: 'absolute', top: -5, right: -5, backgroundColor: '#ef4444', borderRadius: 9, width: 18, height: 18, justifyContent: 'center', alignItems: 'center' },
   cartBadgeText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
@@ -700,29 +589,24 @@ const styles = StyleSheet.create({
   menuHeader: { fontSize: 24, fontWeight: '900', color: '#fff', marginBottom: 5 },
   menuUserRole: { backgroundColor: '#1e293b', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 4, alignSelf: 'flex-start', marginBottom: 30 },
   menuRoleText: { color: '#38bdf8', fontSize: 10, fontWeight: 'bold' },
-  menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 0.5, borderBottomColor: '#334155' },
-  menuItemText: { fontSize: 16, color: '#f1f5f9', fontWeight: '500' },
-  logoutMenuItem: { backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: 15, borderRadius: 4, marginTop: 20 },
-  logoutMenuText: { color: '#f87171', fontWeight: 'bold', textAlign: 'center' },
-  suggestionsContainer: { backgroundColor: "#fff", marginTop: 8, borderRadius: 16, paddingVertical: 8, shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 10, zIndex: 999, elevation: 10 },
-  suggestionItem: { flexDirection: "row", alignItems: "center", paddingHorizontal: 15, paddingVertical: 12 },
-  suggestionText: { marginLeft: 10, fontSize: 14, color: "#1e293b" },
-  // Profile Modal
+  menuItem: { paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#1e293b' },
+  menuItemText: { color: '#fff', fontSize: 16 },
+  logoutMenuItem: { marginTop: 20, padding: 15, borderRadius: 10, backgroundColor: '#ef4444' },
+  logoutMenuText: { textAlign: 'center', fontWeight: 'bold', color: '#fff' },
+  suggestionsContainer: { backgroundColor: '#fff', borderRadius: 15, marginTop: 5, elevation: 5 },
+  suggestionItem: { flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  suggestionText: { marginLeft: 10, color: '#475569' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  profileModalContent: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%' },
-  profileModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  profileModalTitle: { fontSize: 18, fontWeight: '800', color: '#1e293b' },
-  profileScrollContent: { padding: 20, alignItems: 'center' },
-  avatarPicker: { marginBottom: 20 },
-  avatarLarge: { width: 100, height: 100, borderRadius: 50, borderWidth: 2, borderColor: '#3b82f6' },
-  avatarEditIcon: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#3b82f6', width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#fff' },
-  inputLabel: { fontSize: 13, fontWeight: '700', color: '#64748b', alignSelf: 'flex-start', marginBottom: 6, textTransform: 'uppercase' },
-  profileInput: { width: '100%', backgroundColor: '#f1f5f9', borderRadius: 12, paddingHorizontal: 15, height: 48, fontSize: 14, marginBottom: 15 },
-  profileInputFlex: { flex: 1, fontSize: 14 },
-  passwordRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f1f5f9', borderRadius: 12, paddingHorizontal: 15, height: 48, marginBottom: 15 },
-  profileModalActions: { flexDirection: 'row', padding: 20, gap: 10 },
-  profileCancelBtn: { flex: 1, backgroundColor: '#f1f5f9', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-  profileCancelText: { fontSize: 14, fontWeight: '700', color: '#64748b' },
-  profileSaveBtn: { flex: 1, backgroundColor: '#3b82f6', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-  profileSaveText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  profileModalContent: { backgroundColor: '#fff', borderTopLeftRadius: 25, borderTopRightRadius: 25, padding: 20, maxHeight: '90%' },
+  profileModalHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+  profileModalTitle: { fontSize: 20, fontWeight: 'bold' },
+  avatarPicker: { alignSelf: 'center', marginBottom: 20 },
+  avatarLarge: { width: 100, height: 100, borderRadius: 50 },
+  avatarEditIcon: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#3b82f6', p: 5, borderRadius: 15, padding: 5 },
+  inputLabel: { fontSize: 14, color: '#64748b', marginBottom: 5 },
+  profileInput: { backgroundColor: '#f1f5f9', borderRadius: 10, padding: 12, marginBottom: 15 },
+  passwordRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f1f5f9', borderRadius: 10, paddingRight: 10, marginBottom: 15 },
+  profileInputFlex: { flex: 1, padding: 12 },
+  profileSaveBtn: { backgroundColor: '#3b82f6', padding: 15, borderRadius: 12, alignItems: 'center' },
+  profileSaveText: { color: '#fff', fontWeight: 'bold' },
 });
